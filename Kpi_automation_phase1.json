@@ -1,0 +1,106 @@
+{
+  "sheetlist": [
+    "ReadMe",
+    "Data Pipeline Status",
+    "Data Currency",
+    "Practice Detail",
+    "Missing Practices Summary",
+    "KPI"
+  ],
+
+  "sheetvalidation": {
+    "Data Pipeline Status": {
+      "sheetname": "Data Pipeline Status",
+      "fields": [
+        { "name": "Platform", "mandatory": "Y" },
+        { "name": "Location", "mandatory": "Y" },
+        { "name": "Billing Provider", "mandatory": "Y" },
+        { "name": "Service Provider", "mandatory": "Y" },
+        { "name": "Dx Code", "mandatory": "Y" },
+        { "name": "POS", "mandatory": "Y" },
+        { "name": "Modifier", "mandatory": "Y" },
+        { "name": "Provider ID", "mandatory": "Y" },
+        { "name": "Referring Provider", "mandatory": "Y" },
+        { "name": "Remarks", "mandatory": "Y" }
+      ]
+    },
+
+    "Data Currency": {
+      "sheetname": "Data Currency",
+      "fields": [
+        { "name": "Groups", "mandatory": "Y" },
+        { "name": "Platform", "mandatory": "Y" },
+        { "name": "Account Status", "mandatory": "Y" },
+        { "name": "Client Risk", "mandatory": "Y" },
+        { "name": "DBPracticeName", "mandatory": "Y" },
+        { "name": "PracticeCode", "mandatory": "Y" },
+        { "name": "LatestTransactionDate", "mandatory": "Y" },
+        { "name": "LatestLoadedDate", "mandatory": "Y" },
+        { "name": "FinReconciliationStatus", "mandatory": "Y" },
+        { "name": "AgingReconciliationStatus", "mandatory": "Y" },
+        { "name": "FinalReconciliationStatus", "mandatory": "Y" },
+        { "name": "Data Refresh Status", "mandatory": "Y" },
+        { "name": "Data Refresh Frequency", "mandatory": "Y" },
+        { "name": "IsFinAvailable", "mandatory": "Y" },
+        { "name": "IsAgingAvailable", "mandatory": "Y" },
+        { "name": "IsAvailable", "mandatory": "Y" }
+      ]
+    },
+
+    "Practice Detail": {
+      "sheetname": "Practice Detail",
+      "fields": [
+        { "name": "Groups", "mandatory": "Y" },
+        { "name": "Platform", "mandatory": "Y" },
+        { "name": "DBPracticeName", "mandatory": "Y" },
+        { "name": "PracticeCode", "mandatory": "Y" },
+        { "name": "ClientRisk", "mandatory": "Y" },
+        { "name": "AccountStatus", "mandatory": "Y" },
+        { "name": "Enterprise ClientName", "mandatory": "Y" },
+        { "name": "NetSuiteNumber", "mandatory": "Y" },
+        { "name": "GoLiveDate", "mandatory": "Y" },
+        { "name": "OnboardingDate", "mandatory": "Y" },
+        { "name": "WinddownStartDate", "mandatory": "Y" },
+        { "name": "AutomaticExtractionMethod", "mandatory": "Y" },
+        { "name": "ProblemReason", "mandatory": "Y" },
+        { "name": "IsAvailable", "mandatory": "Y" }
+      ]
+    },
+
+    "KPI": {
+      "sheetname": "KPI",
+      "fields": [
+        { "name": "FiscalYear", "mandatory": "Y" },
+        { "name": "FiscalMonth", "mandatory": "Y" },
+        { "name": "Groups", "mandatory": "Y" },
+        { "name": "ClientRisk", "mandatory": "Y" },
+        { "name": "AccountStatus", "mandatory": "Y" },
+        { "name": "Platform", "mandatory": "Y" },
+        { "name": "PracticeCode", "mandatory": "Y" },
+        { "name": "DBPracticeName", "mandatory": "Y" },
+        { "name": "Speciality", "mandatory": "Y" },
+        { "name": "Service Provider", "mandatory": "Y" },
+        { "name": "Billing Provider", "mandatory": "Y" },
+        { "name": "Location", "mandatory": "Y" },
+        { "name": "Current_Charges", "mandatory": "Y" },
+        { "name": "PrevMonth_Charges", "mandatory": "Y" },
+        { "name": "SMLY_Charges", "mandatory": "Y" },
+        { "name": "Prev6_Avg_Charges", "mandatory": "Y" },
+        { "name": "YTD_Avg_Charges", "mandatory": "Y" },
+        { "name": "Current_Payments", "mandatory": "Y" },
+        { "name": "PrevMonth_Payments", "mandatory": "Y" },
+        { "name": "SMLY_Payments", "mandatory": "Y" },
+        { "name": "Prev6_Avg_Payments", "mandatory": "Y" },
+        { "name": "YTD_Avg_Payments", "mandatory": "Y" },
+        { "name": "Current_Adjustments", "mandatory": "Y" },
+        { "name": "PrevMonth_Adjustments", "mandatory": "Y" },
+        { "name": "SMLY_Adjustments", "mandatory": "Y" },
+        { "name": "Prev6_Avg_Adjustments", "mandatory": "Y" },
+        { "name": "YTD_Avg_Adjustments", "mandatory": "Y" },
+        { "name": "ServiceProviderNPI", "mandatory": "Y" },
+        { "name": "BillingProviderNPI", "mandatory": "Y" },
+        { "name": "Practice Status", "mandatory": "Y" }
+      ]
+    }
+  }
+}

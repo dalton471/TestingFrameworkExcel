@@ -33,8 +33,7 @@ def validate_sheet_list(config, workbook):
             "Field": "Sheet",
             "Type": "Existence Testing",
             "Status (P/F)": status,
-            "Failed Count": "",
-            "Failed Practices": ""
+            "Failed Count": 0 if status == "P" else 1
         })
 
     return results
@@ -87,8 +86,7 @@ def validate_sheet_columns(config, excel_file):
                 "Field": field["name"],
                 "Type": "Existence Testing",
                 "Status (P/F)": status,
-                "Failed Count": "",
-                "Failed Practices": ""
+                "Failed Count": 0 if status == "P" else 1
             })
 
     return results

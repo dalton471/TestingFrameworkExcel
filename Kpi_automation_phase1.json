@@ -1,6 +1,6 @@
 {
   "sheetlist": [
-    "ReadMe",
+    "Read Me",
     "Data Pipeline Status",
     "Data Currency",
     "Practice Detail",
@@ -9,6 +9,7 @@
   ],
 
   "sheetvalidation": {
+
     "Data Pipeline Status": {
       "sheetname": "Data Pipeline Status",
       "fields": [
@@ -16,7 +17,7 @@
         { "name": "Location", "mandatory": "Y" },
         { "name": "Billing Provider", "mandatory": "Y" },
         { "name": "Service Provider", "mandatory": "Y" },
-        { "name": "Dx Code", "mandatory": "Y" },
+        { "name": "DxCode", "mandatory": "Y" },
         { "name": "POS", "mandatory": "Y" },
         { "name": "Modifier", "mandatory": "Y" },
         { "name": "Provider ID", "mandatory": "Y" },
@@ -30,20 +31,20 @@
       "fields": [
         { "name": "Groups", "mandatory": "Y" },
         { "name": "Platform", "mandatory": "Y" },
-        { "name": "Account Status", "mandatory": "Y" },
-        { "name": "Client Risk", "mandatory": "Y" },
-        { "name": "DBPracticeName", "mandatory": "Y" },
+        { "name": "AccountStatus", "mandatory": "Y" },
+        { "name": "ClientRisk", "mandatory": "Y" },
+        { "name": "DBPracticename", "mandatory": "Y" },
         { "name": "PracticeCode", "mandatory": "Y" },
         { "name": "LatestTransactionDate", "mandatory": "Y" },
-        { "name": "LatestLoadedDate", "mandatory": "Y" },
-        { "name": "FinReconciliationStatus", "mandatory": "Y" },
-        { "name": "AgingReconciliationStatus", "mandatory": "Y" },
-        { "name": "FinalReconciliationStatus", "mandatory": "Y" },
-        { "name": "Data Refresh Status", "mandatory": "Y" },
-        { "name": "Data Refresh Frequency", "mandatory": "Y" },
+        { "name": "LastLoadedDate", "mandatory": "Y" },
+        { "name": "FinReconcilationstatus", "mandatory": "Y" },
+        { "name": "AgingReconcilationstatus", "mandatory": "Y" },
+        { "name": "FinalReconcilationstatus", "mandatory": "Y" },
+        { "name": "DataRefreshStatus", "mandatory": "Y" },
+        { "name": "DataRefreshFrequency", "mandatory": "Y" },
         { "name": "IsFinAvailable", "mandatory": "Y" },
-        { "name": "IsAgingAvailable", "mandatory": "Y" },
-        { "name": "IsAvailable", "mandatory": "Y" }
+        { "name": "IsAgingavailable", "mandatory": "Y" },
+        { "name": "isavailable", "mandatory": "Y" }
       ]
     },
 
@@ -51,56 +52,203 @@
       "sheetname": "Practice Detail",
       "fields": [
         { "name": "Groups", "mandatory": "Y" },
-        { "name": "Platform", "mandatory": "Y" },
+        { "name": "platform", "mandatory": "Y" },
         { "name": "DBPracticeName", "mandatory": "Y" },
-        { "name": "PracticeCode", "mandatory": "Y" },
+        { "name": "practicecode", "mandatory": "Y" },
         { "name": "ClientRisk", "mandatory": "Y" },
         { "name": "AccountStatus", "mandatory": "Y" },
-        { "name": "Enterprise ClientName", "mandatory": "Y" },
+        { "name": "EnterpriseClientName", "mandatory": "Y" },
         { "name": "NetSuiteNumber", "mandatory": "Y" },
         { "name": "GoLiveDate", "mandatory": "Y" },
         { "name": "OnboardingDate", "mandatory": "Y" },
         { "name": "WinddownStartDate", "mandatory": "Y" },
         { "name": "AutomaticExtractionMethod", "mandatory": "Y" },
-        { "name": "ProblemReason", "mandatory": "Y" },
-        { "name": "IsAvailable", "mandatory": "Y" }
+        { "name": "ProblemReason", "mandatory": "Y" }
       ]
     },
 
-    "KPI": {
-      "sheetname": "KPI",
-      "fields": [
-        { "name": "FiscalYear", "mandatory": "Y" },
-        { "name": "FiscalMonth", "mandatory": "Y" },
-        { "name": "Groups", "mandatory": "Y" },
-        { "name": "ClientRisk", "mandatory": "Y" },
-        { "name": "AccountStatus", "mandatory": "Y" },
-        { "name": "Platform", "mandatory": "Y" },
-        { "name": "PracticeCode", "mandatory": "Y" },
-        { "name": "DBPracticeName", "mandatory": "Y" },
-        { "name": "Speciality", "mandatory": "Y" },
-        { "name": "Service Provider", "mandatory": "Y" },
-        { "name": "Billing Provider", "mandatory": "Y" },
-        { "name": "Location", "mandatory": "Y" },
-        { "name": "Current_Charges", "mandatory": "Y" },
-        { "name": "PrevMonth_Charges", "mandatory": "Y" },
-        { "name": "SMLY_Charges", "mandatory": "Y" },
-        { "name": "Prev6_Avg_Charges", "mandatory": "Y" },
-        { "name": "YTD_Avg_Charges", "mandatory": "Y" },
-        { "name": "Current_Payments", "mandatory": "Y" },
-        { "name": "PrevMonth_Payments", "mandatory": "Y" },
-        { "name": "SMLY_Payments", "mandatory": "Y" },
-        { "name": "Prev6_Avg_Payments", "mandatory": "Y" },
-        { "name": "YTD_Avg_Payments", "mandatory": "Y" },
-        { "name": "Current_Adjustments", "mandatory": "Y" },
-        { "name": "PrevMonth_Adjustments", "mandatory": "Y" },
-        { "name": "SMLY_Adjustments", "mandatory": "Y" },
-        { "name": "Prev6_Avg_Adjustments", "mandatory": "Y" },
-        { "name": "YTD_Avg_Adjustments", "mandatory": "Y" },
-        { "name": "ServiceProviderNPI", "mandatory": "Y" },
-        { "name": "BillingProviderNPI", "mandatory": "Y" },
-        { "name": "Practice Status", "mandatory": "Y" }
-      ]
+"KPI": {
+  "sheetname": "KPI",
+  "fields": [
+    { "name": "FiscalYear", "mandatory": "Y" },
+    { "name": "FiscalMonth", "mandatory": "Y" },
+    { "name": "Groups", "mandatory": "Y" },
+    { "name": "ClientRisk", "mandatory": "Y" },
+    { "name": "AccountStatus", "mandatory": "Y" },
+    { "name": "Platform", "mandatory": "Y" },
+    { "name": "PracticeCode", "mandatory": "Y" },
+    { "name": "DBPracticeName", "mandatory": "Y" },
+    { "name": "Speciality", "mandatory": "Y" },
+    { "name": "Service Provider", "mandatory": "Y" },
+    { "name": "Billing Provider", "mandatory": "Y" },
+    { "name": "Location", "mandatory": "Y" },
+    { "name": "Current_Charges", "mandatory": "Y" },
+    { "name": "PrevMonth_Charges", "mandatory": "Y" },
+    { "name": "SMLY_Charges", "mandatory": "Y" },
+    { "name": "Prev6_Avg_Charges", "mandatory": "Y" },
+    { "name": "YTD_Avg_Charges", "mandatory": "Y" },
+    { "name": "Current_Payments", "mandatory": "Y" },
+    { "name": "PrevMonth_Payments", "mandatory": "Y" },
+    { "name": "SMLY_Payments", "mandatory": "Y" },
+    { "name": "Prev6_Avg_Payments", "mandatory": "Y" },
+    { "name": "YTD_Avg_Payments", "mandatory": "Y" },
+    { "name": "Current_Adjustments", "mandatory": "Y" },
+    { "name": "PrevMonth_Adjustments", "mandatory": "Y" },
+    { "name": "SMLY_Adjustments", "mandatory": "Y" },
+    { "name": "Prev6_Avg_Adjustments", "mandatory": "Y" },
+    { "name": "YTD_Avg_Adjustments", "mandatory": "Y" },
+    { "name": "Current_Encounters", "mandatory": "Y" },
+    { "name": "PrevMonth_Encounters", "mandatory": "Y" },
+    { "name": "SMLY_Encounters", "mandatory": "Y" },
+    { "name": "Prev6_Avg_Encounters", "mandatory": "Y" },
+    { "name": "YTD_Avg_Encounters", "mandatory": "Y" },
+    { "name": "AssociatedPayments", "mandatory": "Y" },
+    { "name": "AssociatedAdjustments", "mandatory": "Y" },
+    { "name": "IsLatestMonth", "mandatory": "Y" },
+    { "name": "GrossAR", "mandatory": "Y" },
+    { "name": "InsuranceAR", "mandatory": "Y" },
+    { "name": "InsuranceAR90Plus", "mandatory": "Y" },
+    { "name": "insAR120plus", "mandatory": "Y" },
+    { "name": "PatientAR", "mandatory": "Y" },
+    { "name": "PatientAR90+", "mandatory": "Y" },
+    { "name": "PatientAR120+", "mandatory": "Y" },
+    { "name": "AvgDailyChargesByPractice", "mandatory": "Y" },
+    { "name": "AvgDailyChargesByProvider", "mandatory": "Y" },
+    { "name": "AvgDailyChargesByLocation", "mandatory": "Y" },
+    { "name": "DaysInARByPractice", "mandatory": "Y" },
+    { "name": "DaysInARByProvider", "mandatory": "Y" },
+    { "name": "DaysInARByLocation", "mandatory": "Y" },
+    { "name": "ServiceProviderNPI", "mandatory": "Y" },
+    { "name": "BillingProviderNPI", "mandatory": "Y" },
+    { "name": "Practice Status", "mandatory": "Y" }
+  ]
+}
+  },
+
+  "dataqualityvalidation": {
+
+    "duplicatecheck": [
+      {
+        "sheetname": "Practice Detail",
+        "columns": ["PracticeCode"]
+      },
+      {
+        "sheetname": "Data Currency",
+        "columns": ["PracticeCode"]
+      },
+      {
+        "sheetname": "KPI",
+        "columns": [
+          "FiscalYear",
+          "FiscalMonth",
+		       "PracticeCode",
+          "ServiceProviderNPI",
+          "BillingProviderNPI",
+          "Location"
+        ]
+      }
+    ],
+
+    "nullcheck": [
+      {
+        "sheetname": "KPI",
+        "columns": [ 
+		"FiscalYear",
+		"FiscalMonth", 
+		"Groups",
+		"PracticeCode",
+		"DBPracticeName",
+		"Practice Status"
+		]
+	}
+    ],
+
+    "numericprecision": [
+      {
+        "sheetname": "KPI",
+        "columns": "ALL_NUMERIC_COLUMNS",
+        "precision": 2
+      }
+    ]
+  },
+
+  "businessrulevalidation": [
+    {
+      "name": "Latest Transaction Date should be less than Latest Loaded Date",
+      "sheetname": "Data Currency"
+    },
+    {
+      "name": "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL",
+      "sheetname": "Data Currency"
+    },
+    {
+      "name": "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet",
+      "sheetname": "KPI"
     }
-  }
+  ],
+
+  "formulavalidation": [
+    {
+      "name": "ACR Calculation",
+      "formula": "(AssociatedPayments + AssociatedAdjustments) / Current_Charges"
+    },
+    {
+      "name": "GCR Calculation",
+      "formula": "AssociatedPayments / Current_Charges"
+    },
+    {
+      "name": "Gross AR Calculation",
+      "formula": "InsuranceAR + PatientAR"
+    }
+  ],
+
+  "reconciliationvalidation": [
+    {
+      "name": "FIN Metrics",
+      "source": "FIN Recon",
+      "target": "KPI"
+    },
+    {
+      "name": "AR Metrics",
+      "source": "Aging Recon",
+      "target": "KPI"
+    }
+  ],
+
+  "trendvalidation": [
+    {
+      "metric": "FIN Metrics",
+      "threshold": "15x"
+    },
+    {
+      "metric": "AR Metrics",
+      "threshold": "15x"
+    },
+    {
+      "metric": "ACR",
+      "threshold": "15x"
+    },
+    {
+      "metric": "GCR",
+      "threshold": "15x"
+    }
+  ],
+
+  "crosssheetvalidation": [
+    {
+      "source": "Practice Detail",
+      "target": "KPI",
+      "validation": "Practice Status"
+    },
+    {
+      "source": "Practice Detail",
+      "target": "Missing Practices Summary",
+      "validation": "Practice Coverage"
+    },
+    {
+      "source": "Data Currency",
+      "target": "KPI",
+      "validation": "Practice Availability"
+    }
+  ]
 }

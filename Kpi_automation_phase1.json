@@ -130,18 +130,18 @@
     "duplicatecheck": [
       {
         "sheetname": "Practice Detail",
-        "columns": ["PracticeCode"]
+        "columns": ["practicecode"]
       },
       {
         "sheetname": "Data Currency",
-        "columns": ["PracticeCode"]
+        "columns": ["Practicecode"]
       },
       {
         "sheetname": "KPI",
         "columns": [
           "FiscalYear",
           "FiscalMonth",
-		       "PracticeCode",
+		      "PracticeCode",
           "ServiceProviderNPI",
           "BillingProviderNPI",
           "Location"

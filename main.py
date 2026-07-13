@@ -90,6 +90,41 @@ def validate_sheet_columns(config, excel_file):
             })
 
     return results
+def validate_duplicate_check(config, excel_file):
+
+    results = []
+
+    duplicate_validation = config["dataqualityvalidation"]["duplicatecheck"]
+
+    print("\n========== DUPLICATE CHECK VALIDATION ==========\n")
+
+    for rule in duplicate_validation:
+
+        sheet_name = rule["sheetname"]
+        columns = rule["columns"]
+
+        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        duplicate_rows = df[df.duplicated(subset=columns, keep=False)]
+
+        duplicate_count = len(duplicate_rows)
+
+        if duplicate_count == 0:
+            status = "P"
+            print(f"{sheet_name} - PASS")
+        else:
+            status = "F"
+            print(f"{sheet_name} - FAIL ({duplicate_count} duplicate rows)")
+
+        results.append({
+            "Sheet Name": sheet_name,
+            "Field": "Duplicate Check",
+            "Type": "Data Quality Validation",
+            "Status (P/F)": status,
+            "Failed Count": duplicate_count
+        })
+
+    return results
 
 def main():
 
@@ -104,8 +139,9 @@ def main():
 
     sheet_results = validate_sheet_list(config, workbook)
     column_results = validate_sheet_columns(config, excel_file)
+    duplicate_results = validate_duplicate_check(config, excel_file)
 
-    final_results = sheet_results + column_results
+    final_results = sheet_results + column_results + duplicate_results
 
     report = pd.DataFrame(final_results)
 

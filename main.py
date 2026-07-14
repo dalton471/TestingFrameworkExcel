@@ -162,6 +162,57 @@ def validate_null_check(config, excel_file):
 
     return results
 
+def validate_formula_check(config, excel_file):
+    results = []
+
+    formula_validation = config["formulavalidation"]
+
+    print("\n========== FORMULA VALIDATION ==========\n")
+
+    df = pd.read_excel(excel_file, sheet_name="KPI")
+
+    for rule in formula_validation:
+
+        formula_name = rule["name"]
+
+        if formula_name == "ACR Calculation":
+
+            acr = ((df["AssociatedPayments"] +
+                    df["AssociatedAdjustments"]) /
+                    df["Current_Charges"]) * 100
+
+            failed_count = (acr <= 100).sum()
+
+        elif formula_name == "GCR Calculation":
+
+            gcr = (df["AssociatedPayments"] /
+                   df["Current_Charges"]) * 100
+
+            failed_count = (gcr <= 100).sum()
+
+        elif formula_name == "Gross AR Calculation":
+
+            calculated_gross_ar = df["InsuranceAR"] + df["PatientAR"]
+
+            failed_count = (calculated_gross_ar != df["GrossAR"]).sum()
+
+        if failed_count == 0:
+            status = "P"
+            print(f"{formula_name} - PASS")
+        else:
+            status = "F"
+            print(f"{formula_name} - FAIL ({failed_count} rows)")
+
+        results.append({
+            "Sheet Name": "KPI",
+            "Field": formula_name,
+            "Type": "Formula Validation",
+            "Status (P/F)": status,
+            "Failed Count": failed_count
+        })
+
+    return results
+
 def main():
 
     json_file = "Kpi_automation_phase1.json"
@@ -177,8 +228,9 @@ def main():
     column_results = validate_sheet_columns(config, excel_file)
     duplicate_results = validate_duplicate_check(config, excel_file)
     null_results = validate_null_check(config, excel_file)
+    formula_results = validate_formula_check(config, excel_file)
 
-    final_results = sheet_results + column_results + duplicate_results + null_results
+    final_results = sheet_results + column_results + duplicate_results + null_results + formula_results
 
     report = pd.DataFrame(final_results)
 

@@ -116,13 +116,49 @@ def validate_duplicate_check(config, excel_file):
             status = "F"
             print(f"{sheet_name} - FAIL ({duplicate_count} duplicate rows)")
 
-        results.append({
-            "Sheet Name": sheet_name,
-            "Field": "Duplicate Check",
-            "Type": "Data Quality Validation",
-            "Status (P/F)": status,
-            "Failed Count": duplicate_count
-        })
+        for column in columns:
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": column,
+                "Type": "Duplicate Check",
+                "Status (P/F)": status,
+                "Failed Count": duplicate_count
+            })
+
+    return results
+
+def validate_null_check(config, excel_file):
+    results = []
+
+    null_validation = config["dataqualityvalidation"]["nullcheck"]
+
+    print("\n========== NULL CHECK VALIDATION ==========\n")
+
+    for rule in null_validation:
+
+        sheet_name = rule["sheetname"]
+        columns = rule["columns"]
+
+        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        for column in columns:
+
+            null_count = df[column].isnull().sum()
+
+            if null_count == 0:
+                status = "P"
+                print(f"{sheet_name} - {column} - PASS")
+            else:
+                status = "F"
+                print(f"{sheet_name} - {column} - FAIL ({null_count} null values)")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": column,
+                "Type": "Null Check",
+                "Status (P/F)": status,
+                "Failed Count": null_count
+            })
 
     return results
 
@@ -140,8 +176,9 @@ def main():
     sheet_results = validate_sheet_list(config, workbook)
     column_results = validate_sheet_columns(config, excel_file)
     duplicate_results = validate_duplicate_check(config, excel_file)
+    null_results = validate_null_check(config, excel_file)
 
-    final_results = sheet_results + column_results + duplicate_results
+    final_results = sheet_results + column_results + duplicate_results + null_results
 
     report = pd.DataFrame(final_results)
 

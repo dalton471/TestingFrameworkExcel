@@ -181,14 +181,14 @@ def validate_formula_check(config, excel_file):
                     df["AssociatedAdjustments"]) /
                     df["Current_Charges"]) * 100
 
-            failed_count = (acr <= 100).sum()
+            failed_count = (acr > 100).sum()
 
         elif formula_name == "GCR Calculation":
 
             gcr = (df["AssociatedPayments"] /
                    df["Current_Charges"]) * 100
 
-            failed_count = (gcr <= 100).sum()
+            failed_count = (gcr > 100).sum()
 
         elif formula_name == "Gross AR Calculation":
 

@@ -190,11 +190,11 @@
   "formulavalidation": [
     {
       "name": "ACR Calculation",
-      "formula": "(AssociatedPayments + AssociatedAdjustments) / Current_Charges"
+      "formula": "((AssociatedPayments + AssociatedAdjustments) / Current_Charges) * 100"
     },
     {
       "name": "GCR Calculation",
-      "formula": "AssociatedPayments / Current_Charges"
+      "formula": "(AssociatedPayments / Current_Charges) * 100"
     },
     {
       "name": "Gross AR Calculation",

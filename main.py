@@ -191,10 +191,18 @@ def validate_formula_check(config, excel_file):
             failed_count = (gcr > 100).sum()
 
         elif formula_name == "Gross AR Calculation":
-
             calculated_gross_ar = df["InsuranceAR"] + df["PatientAR"]
+            comparison = ~(
+            calculated_gross_ar.round(2).fillna(0)
+            .eq(df["GrossAR"].round(2).fillna(0))
+            ) 
+            failed_rows = df.loc[
+                comparison,
+                ["InsuranceAR", "PatientAR", "GrossAR"]
+                ].copy()
 
-            failed_count = (calculated_gross_ar != df["GrossAR"]).sum()
+            failed_rows["CalculatedGrossAR"] = calculated_gross_ar[comparison]
+            failed_count = len(failed_rows)
 
         if failed_count == 0:
             status = "P"
@@ -210,6 +218,168 @@ def validate_formula_check(config, excel_file):
             "Status (P/F)": status,
             "Failed Count": failed_count
         })
+
+    return results
+def validate_numeric_precision(config, excel_file):
+
+    results = []
+
+    precision_validation = config["dataqualityvalidation"]["numericprecision"]
+
+    print("\n========== NUMERIC PRECISION VALIDATION ==========\n")
+
+    for rule in precision_validation:
+
+        sheet_name = rule["sheetname"]
+        precision = rule["precision"]
+
+        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        numeric_columns = df.select_dtypes(include="number").columns
+
+        for column in numeric_columns:
+
+            failed_count = 0
+
+            for value in df[column].dropna():
+
+                decimal_places = str(value).split(".")
+
+                if len(decimal_places) == 2:
+                    if len(decimal_places[1]) > precision:
+                        failed_count += 1
+
+            if failed_count == 0:
+                status = "P"
+                print(f"{sheet_name} - {column} - PASS")
+            else:
+                status = "F"
+                print(f"{sheet_name} - {column} - FAIL ({failed_count} rows)")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": column,
+                "Type": "Numeric Precision",
+                "Status (P/F)": status,
+                "Failed Count": failed_count
+            })
+
+    return results
+
+def validate_business_rule(config, excel_file):
+
+    results = []
+
+    business_rules = config["businessrulevalidation"]
+
+    print("\n========== BUSINESS RULE VALIDATION ==========\n")
+
+    data_currency_df = pd.read_excel(excel_file, sheet_name="Data Currency")
+    practice_detail_df = pd.read_excel(excel_file, sheet_name="Practice Detail")
+    kpi_df = pd.read_excel(excel_file, sheet_name="KPI")
+
+    data_currency_df["LatestTransactionDate"] = pd.to_datetime(
+        data_currency_df["LatestTransactionDate"],
+        errors="coerce"
+    )
+
+    data_currency_df["LastLoadedDate"] = pd.to_datetime(
+        data_currency_df["LastLoadedDate"],
+        errors="coerce"
+    )
+
+    for rule in business_rules:
+
+        rule_name = rule["name"]
+
+        # Rule 1
+        if rule_name == "Latest Transaction Date should be less than Latest Loaded Date":
+
+            failed_count = (
+                data_currency_df["LatestTransactionDate"]
+                <
+                data_currency_df["LastLoadedDate"]
+            ).sum()
+
+            if failed_count == 0:
+                status = "P"
+                print(f"{rule_name} - PASS")
+            else:
+                status = "F"
+                print(f"{rule_name} - FAIL ({failed_count} rows)")
+
+            results.append({
+                "Sheet Name": "Data Currency",
+                "Field": rule_name,
+                "Type": "Business Rule Validation",
+                "Status (P/F)": status,
+                "Failed Count": failed_count
+            })
+
+        elif rule_name == "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL":
+
+            today = pd.Timestamp.today()
+
+            three_months_old = today - pd.DateOffset(months=3)
+
+            failed_count = (
+                (data_currency_df["LatestTransactionDate"] < three_months_old)
+                &
+                (
+                    ~data_currency_df["LatestTransactionDate"].isna()
+                )
+            ).sum()
+
+            if failed_count == 0:
+                status = "P"
+                print(f"{rule_name} - PASS")
+            else:
+                status = "F"
+                print(f"{rule_name} - FAIL ({failed_count} rows)")
+
+            results.append({
+                "Sheet Name": "Data Currency",
+                "Field": rule_name,
+                "Type": "Business Rule Validation",
+                "Status (P/F)": status,
+                "Failed Count": failed_count
+            })
+
+        elif rule_name == "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet":
+
+            merged_df = kpi_df.merge(
+                practice_detail_df,
+                left_on="PracticeCode",
+                right_on="practicecode",
+                how="left"
+            )
+
+            comparison = (
+                merged_df["Practice Status"]
+                !=
+                merged_df["ProblemReason"]
+            )
+
+            failed_rows = merged_df.loc[comparison,["PracticeCode", "Practice Status", "ProblemReason"]]
+            print("\nFAILED ROWS:")
+            print(failed_rows)
+
+            failed_count = len(failed_rows)
+
+            if failed_count == 0:
+                status = "P"
+                print(f"{rule_name} - PASS")
+            else:
+                status = "F"
+                print(f"{rule_name} - FAIL ({failed_count} rows)")
+
+            results.append({
+                "Sheet Name": "KPI",
+                "Field": rule_name,
+                "Type": "Business Rule Validation",
+                "Status (P/F)": status,
+                "Failed Count": failed_count
+            })
 
     return results
 
@@ -229,8 +399,10 @@ def main():
     duplicate_results = validate_duplicate_check(config, excel_file)
     null_results = validate_null_check(config, excel_file)
     formula_results = validate_formula_check(config, excel_file)
+    numeric_precision_results = validate_numeric_precision(config, excel_file)
+    business_rule_results = validate_business_rule(config, excel_file)
 
-    final_results = sheet_results + column_results + duplicate_results + null_results + formula_results
+    final_results = sheet_results + column_results + duplicate_results + null_results + formula_results + numeric_precision_results + business_rule_results
 
     report = pd.DataFrame(final_results)
 

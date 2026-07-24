@@ -173,82 +173,128 @@
   },
 
   "businessrulevalidation": [
-    {
-      "name": "Latest Transaction Date should be less than Latest Loaded Date",
-      "sheetname": "Data Currency"
-    },
-    {
-      "name": "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL",
-      "sheetname": "Data Currency"
-    },
-    {
-      "name": "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet",
-      "sheetname": "KPI"
-    }
-  ],
+  {
+    "name": "Latest Transaction Date should be less than Latest Loaded Date",
+    "sheetname": "Data Currency",
+    "leftcolumn": "LatestTransactionDate",
+    "operator": "<",
+    "rightcolumn": "LastLoadedDate",
+    "distinctcolumn": "Practicecode"
+  },
+  {
+    "name": "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL",
+    "sheetname": "Data Currency",
+    "column": "LatestTransactionDate",
+    "months": 3
+  },
+  {
+    "name": "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet",
+    "sheetname": "KPI",
+    "leftcolumn": "Practice Status",
+    "lookupsheet": "Practice Detail",
+    "lookupkeyleft": "PracticeCode",
+    "lookupkeyright": "practicecode",
+    "rightcolumn": "ProblemReason"
+  }
+],
 
   "formulavalidation": [
     {
-      "name": "ACR Calculation",
-      "formula": "((AssociatedPayments + AssociatedAdjustments) / Current_Charges) * 100"
+        "name": "ACR Calculation",
+        "formula": "((AssociatedPayments + AssociatedAdjustments) / Current_Charges) * 100",
+        "threshold": 100,
+        "operator": "<="
     },
     {
-      "name": "GCR Calculation",
-      "formula": "(AssociatedPayments / Current_Charges) * 100"
+        "name": "GCR Calculation",
+        "formula": "(AssociatedPayments / Current_Charges) * 100",
+        "threshold": 100,
+        "operator": "<="
     },
     {
-      "name": "Gross AR Calculation",
-      "formula": "InsuranceAR + PatientAR"
+        "name": "Gross AR Calculation",
+        "formula": "InsuranceAR + PatientAR",
+        "targetcolumn": "GrossAR"
     }
-  ],
+],
 
   "reconciliationvalidation": [
-    {
-      "name": "FIN Metrics",
-      "source": "FIN Recon",
-      "target": "KPI"
-    },
-    {
-      "name": "AR Metrics",
-      "source": "Aging Recon",
-      "target": "KPI"
-    }
+  {
+    "name": "FIN Reconciliation",
+    "sourcesheet": "KPI",
+    "targetsheet": "FIN Recon",
+    "matchcolumns": [
+      "FiscalYear",
+      "FiscalMonth",
+      "PracticeCode"
+    ],
+    "comparisons": [
+      {
+        "sourcecolumn": "Current Charges",
+        "targetcolumn": "PM Charges"
+      },
+      {
+        "sourcecolumn": "Current Payments",
+        "targetcolumn": "PM Payments"
+      },
+      {
+        "sourcecolumn": "Current Adjustments",
+        "targetcolumn": "PM Adjustments"
+      }
+    ],
+    "distinctcolumn": "PracticeCode"
+  },
+  {
+    "name": "Aging Reconciliation",
+    "sourcesheet": "KPI",
+    "targetsheet": "Aging Recon",
+    "matchcolumns": [
+      "PracticeCode"
+    ],
+    "comparisons": [
+      {
+        "sourcecolumn": "Gross AR",
+        "targetcolumn": "Source Values"
+      }
+    ],
+    "distinctcolumn": "PracticeCode"
+  }
   ],
 
   "trendvalidation": [
     {
-      "metric": "FIN Metrics",
-      "threshold": "15x"
+        "name": "FIN Metrics Trend Validation",
+        "sheet": "KPI",
+        "metric": "FIN Metrics",
+        "threshold": 50,
+        "operator": "<="
     },
     {
-      "metric": "AR Metrics",
-      "threshold": "15x"
-    },
-    {
-      "metric": "ACR",
-      "threshold": "15x"
-    },
-    {
-      "metric": "GCR",
-      "threshold": "15x"
+        "name": "AR Metrics Trend Validation",
+        "sheet": "KPI",
+        "metric": "AR Metrics",
+        "threshold": 50,
+        "operator": "<="
     }
   ],
 
+
   "crosssheetvalidation": [
     {
-      "source": "Practice Detail",
-      "target": "KPI",
-      "validation": "Practice Status"
+      "name": "Practice Status Validation",
+      "sourcesheet": "Practice Detail",
+      "targetsheet": "KPI",
+      "matchcolumn": "PracticeCode",
+      "sourcecolumn": "ProblemReason",
+      "targetcolumn": "Practice Status",
+      "validationtype": "valuecomparison"
     },
     {
-      "source": "Practice Detail",
-      "target": "Missing Practices Summary",
-      "validation": "Practice Coverage"
-    },
-    {
-      "source": "Data Currency",
-      "target": "KPI",
-      "validation": "Practice Availability"
+      "name": "Practice Availability Validation",
+      "sourcesheet": "Data Currency",
+      "targetsheet": "KPI",
+      "matchcolumn": "PracticeCode",
+      "validationtype": "existencecheck"
     }
   ]
 }

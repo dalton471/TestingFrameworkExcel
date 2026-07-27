@@ -220,7 +220,7 @@
 
   "reconciliationvalidation": [
   {
-    "name": "FIN Reconciliation",
+    "name": "Current Charges",
     "sourcesheet": "KPI",
     "targetsheet": "FIN Recon",
     "matchcolumns": [
@@ -228,56 +228,86 @@
       "FiscalMonth",
       "PracticeCode"
     ],
-    "comparisons": [
-      {
-        "sourcecolumn": "Current Charges",
-        "targetcolumn": "PM Charges"
-      },
-      {
-        "sourcecolumn": "Current Payments",
-        "targetcolumn": "PM Payments"
-      },
-      {
-        "sourcecolumn": "Current Adjustments",
-        "targetcolumn": "PM Adjustments"
-      }
-    ],
+    "sourcecolumn": "Current_Charges",
+    "targetcolumn": "PM_Charges",
     "distinctcolumn": "PracticeCode"
   },
   {
-    "name": "Aging Reconciliation",
+    "name": "Current Payments",
+    "sourcesheet": "KPI",
+    "targetsheet": "FIN Recon",
+    "matchcolumns": [
+      "FiscalYear",
+      "FiscalMonth",
+      "PracticeCode"
+    ],
+    "sourcecolumn": "Current_Payments",
+    "targetcolumn": "PM_Payments",
+    "distinctcolumn": "PracticeCode"
+  },
+  {
+    "name": "Current Adjustments",
+    "sourcesheet": "KPI",
+    "targetsheet": "FIN Recon",
+    "matchcolumns": [
+      "FiscalYear",
+      "FiscalMonth",
+      "PracticeCode"
+    ],
+    "sourcecolumn": "Current_Adjustments",
+    "targetcolumn": "PM_Adjustments",
+    "distinctcolumn": "PracticeCode"
+  },
+  {
+    "name": "Gross AR",
     "sourcesheet": "KPI",
     "targetsheet": "Aging Recon",
     "matchcolumns": [
       "PracticeCode"
     ],
-    "comparisons": [
-      {
-        "sourcecolumn": "Gross AR",
-        "targetcolumn": "Source Values"
-      }
-    ],
+    "sourcecolumn": "GrossAR",
+    "targetcolumn": "Source Values",
     "distinctcolumn": "PracticeCode"
   }
-  ],
+],
 
   "trendvalidation": [
-    {
-        "name": "FIN Metrics Trend Validation",
-        "sheet": "KPI",
-        "metric": "FIN Metrics",
-        "threshold": 50,
-        "operator": "<="
-    },
-    {
-        "name": "AR Metrics Trend Validation",
-        "sheet": "KPI",
-        "metric": "AR Metrics",
-        "threshold": 50,
-        "operator": "<="
-    }
-  ],
-
+  {
+    "name": "Current Charges",
+    "sheet": "KPI",
+    "metric": "Current_Charges",
+    "threshold": 30,
+    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+  },
+  {
+    "name": "Current Payments",
+    "sheet": "KPI",
+    "metric": "Current_Payments",
+    "threshold": 30,
+    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+  },
+  {
+    "name": "Current Adjustments",
+    "sheet": "KPI",
+    "metric": "Current_Adjustments",
+    "threshold": 30,
+    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+  },
+  {
+    "name": "Current Encounters",
+    "sheet": "KPI",
+    "metric": "Current_Encounters",
+    "threshold": 30,
+    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+  },
+  {
+    "name": "Gross AR",
+    "sheet": "KPI",
+    "metric": "GrossAR",
+    "threshold": 30,
+    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+  }
+],
 
   "crosssheetvalidation": [
     {

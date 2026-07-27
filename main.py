@@ -327,43 +327,81 @@ def validate_business_rule(config, excel_file):
 
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
+        print("\nRule :", rule_name)
+        print("Sheet:", sheet_name)
+        print("Columns:")
+        print(df.columns.tolist())
+
         if rule_name == "Latest Transaction Date should be less than Latest Loaded Date":
 
             left_column = rule["leftcolumn"]
             right_column = rule["rightcolumn"]
             distinct_column = rule["distinctcolumn"]
 
-            left_dates = pd.to_datetime(df[left_column], errors="coerce")
-            right_dates = pd.to_datetime(df[right_column], errors="coerce")
+            failed_rows = []
 
-            left_text = df[left_column].astype(str).str.strip().str.lower()
-            right_text = df[right_column].astype(str).str.strip().str.lower()
+            for _, row in df.iterrows():
 
-            comparison = (
-                (left_dates >= right_dates)
-                |
-                (
-                    left_dates.isna()
-                    &
-                    (left_text != "not applicable")
-                )
-                |
-                (
-                    right_dates.isna()
-                    &
-                    (right_text != "not applicable")
-                )
+                left_value = row[left_column]
+                right_value = row[right_column]
+
+                left_text = str(left_value).strip().lower()
+                right_text = str(right_value).strip().lower()
+
+                # Case 1 : Both Not Applicable -> PASS
+                if (
+                    left_text == "not applicable"
+                    and
+                    right_text == "not applicable"
+                ):
+                    continue
+
+                # Case 2 : One Not Applicable -> FAIL
+                if (
+                    (left_text == "not applicable" and right_text != "not applicable")
+                    or
+                    (right_text == "not applicable" and left_text != "not applicable")
+                ):
+                    failed_rows.append({
+                        distinct_column: row[distinct_column],
+                        left_column: left_value,
+                        right_column: right_value
+                    })
+                    continue
+
+                left_date = pd.to_datetime(left_value, errors="coerce")
+                right_date = pd.to_datetime(right_value, errors="coerce")
+
+                # Case 3 : NULL / Blank / Invalid -> FAIL
+                if pd.isna(left_date) or pd.isna(right_date):
+                    failed_rows.append({
+                        distinct_column: row[distinct_column],
+                        left_column: left_value,
+                        right_column: right_value
+                    })
+                    continue
+
+                # Case 4 : Latest Transaction Date should be less than Latest Loaded Date
+                if left_date >= right_date:
+                    failed_rows.append({
+                        distinct_column: row[distinct_column],
+                        left_column: left_value,
+                        right_column: right_value
+                    })
+
+            failed_df = pd.DataFrame(
+                failed_rows,
+                columns=[
+                    distinct_column,
+                    left_column,
+                    right_column
+                ]
             )
 
-            failed_rows = df.loc[
-                comparison,
-                [distinct_column, left_column, right_column]
-            ]
-
             print("\nFAILED ROWS:")
-            print(failed_rows)
+            print(failed_df)
 
-            failed_count = len(failed_rows)
+            failed_count = len(failed_df)
 
             if failed_count == 0:
                 status = "P"
@@ -375,12 +413,11 @@ def validate_business_rule(config, excel_file):
             results.append({
                 "Sheet Name": sheet_name,
                 "Field": rule_name,
-                "Test Type": "Business Rule Validation",
+                "Test Type": "Data Validation",
                 "Test Name": "Business Rule Validation",
                 "Status (P/F)": status,
                 "Failed Count": failed_count
             })
-
 
         elif rule_name == "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL":
 
@@ -421,7 +458,7 @@ def validate_business_rule(config, excel_file):
             results.append({
             "Sheet Name": sheet_name,
             "Field": rule_name,
-            "Test Type": "Business Rule Validation",
+            "Test Type": "Data Validation",
             "Test Name": "Business Rule Validation",
             "Status (P/F)": status,
             "Failed Count": failed_count
@@ -469,7 +506,7 @@ def validate_business_rule(config, excel_file):
             results.append({
             "Sheet Name": sheet_name,
             "Field": rule_name,
-            "Test Type": "Business Rule Validation",
+            "Test Type": "Data Validation",
             "Test Name": "Business Rule Validation",
             "Status (P/F)": status,
             "Failed Count": failed_count
@@ -491,7 +528,8 @@ def validate_reconciliation(config, excel_file):
         source_sheet = rule["sourcesheet"]
         target_sheet = rule["targetsheet"]
         match_columns = rule["matchcolumns"]
-        comparisons = rule["comparisons"]
+        source_column = rule["sourcecolumn"]
+        target_column = rule["targetcolumn"]
         distinct_column = rule["distinctcolumn"]
 
         source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
@@ -512,6 +550,8 @@ def validate_reconciliation(config, excel_file):
             for col in match_columns
         ]
 
+        source_column = source_column.replace(" ", "_")
+        target_column = target_column.replace(" ", "_")
         distinct_column = distinct_column.replace(" ", "_")
 
         merged_df = pd.merge(
@@ -524,73 +564,59 @@ def validate_reconciliation(config, excel_file):
         print(f"\n{rule_name}")
         print(f"Matched Rows : {len(merged_df)}")
 
-        total_failed = 0
+        print(f"\nComparing {source_column} with {target_column}")
 
-        for compare in comparisons:
+        if source_column not in merged_df.columns:
+            print(f"Source column '{source_column}' not found.")
+            continue
 
-            source_column = compare["sourcecolumn"].replace(" ", "_")
-            target_column = compare["targetcolumn"].replace(" ", "_")
+        if target_column not in merged_df.columns:
+            print(f"Target column '{target_column}' not found.")
+            continue
 
-            if source_column == "Gross_AR":
-                source_column = "GrossAR"
+        source_values = pd.to_numeric(
+            merged_df[source_column],
+            errors="coerce"
+        ).fillna(0)
 
-            print(f"\nComparing {source_column} with {target_column}")
+        target_values = pd.to_numeric(
+            merged_df[target_column],
+            errors="coerce"
+        ).fillna(0)
 
-            if source_column not in merged_df.columns:
-                print(f"Source column '{source_column}' not found.")
-                continue
+        comparison = source_values != target_values
 
-            if target_column not in merged_df.columns:
-                print(f"Target column '{target_column}' not found.")
-                continue
+        display_columns = list(dict.fromkeys(
+            match_columns +
+            [distinct_column, source_column, target_column]
+        ))
 
-            source_values = pd.to_numeric(
-                merged_df[source_column],
-                errors="coerce"
-            ).fillna(0)
+        failed_rows = merged_df.loc[
+            comparison,
+            display_columns
+        ]
 
-            target_values = pd.to_numeric(
-                merged_df[target_column],
-                errors="coerce"
-            ).fillna(0)
+        failed_rows = failed_rows.drop_duplicates(
+            subset=[distinct_column]
+        )
 
-            comparison = source_values != target_values
+        failed_count = len(failed_rows)
 
-            display_columns = list(dict.fromkeys(
-                match_columns +
-                [distinct_column, source_column, target_column]
-            ))
-
-            failed_rows = merged_df.loc[
-                comparison,
-                display_columns
-            ]
-
-            failed_rows = failed_rows.drop_duplicates(
-                subset=[distinct_column]
-            )
-
-            failed_count = len(failed_rows)
-            total_failed += failed_count
-
-            if failed_count == 0:
-                print("PASS")
-            else:
-                print(f"FAIL ({failed_count} rows)")
-                print(failed_rows)
-
-        if total_failed == 0:
+        if failed_count == 0:
             status = "P"
+            print("PASS")
         else:
             status = "F"
+            print(f"FAIL ({failed_count} rows)")
+            print(failed_rows)
 
         results.append({
             "Sheet Name": source_sheet,
             "Field": rule_name,
-            "Test Type": "Reconciliation Validation",
+            "Test Type": "Data Validation",
             "Test Name": "Reconciliation Validation",
             "Status (P/F)": status,
-            "Failed Count": total_failed
+            "Failed Count": failed_count
         })
 
     return results
@@ -672,7 +698,7 @@ def validate_cross_sheet(config, excel_file):
         results.append({
             "Sheet Name": source_sheet,
             "Field": rule_name,
-            "Test Type": "Cross Sheet Validation",
+            "Test Type": "Data Validation",
             "Test Name": "Cross Sheet Validation",
             "Status (P/F)": status,
             "Failed Count": failed_count
@@ -693,23 +719,74 @@ def validate_trend(config, excel_file):
     for rule in rules:
 
         sheet_name = rule["sheet"]
+        metric_name = rule["name"]
         metric = rule["metric"]
         threshold = rule["threshold"]
 
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
-        values = pd.to_numeric(df["YOUR_METRIC_COLUMN"], errors="coerce")
+        # Normalize column names
+        df.columns = (
+            df.columns.str.strip()
+            .str.replace(" ", "_")
+            .str.replace("/", "_")
+        )
 
-        failed_count = (values > threshold).sum()
+        failed_count = 0
+
+        if metric == "GrossAR":
+
+            df = df.sort_values(
+                by=["PracticeCode", "FiscalYear", "FiscalMonth"]
+            ).reset_index(drop=True)
+
+            previous_values = (
+                df.groupby("PracticeCode")[metric]
+                .shift(1)
+            )
+
+            for current, previous in zip(df[metric], previous_values):
+
+                if pd.isna(previous):
+                    continue
+
+                difference = current - previous
+
+                if difference > (threshold * previous):
+                    failed_count += 1
+
+        else:
+
+            prev_column = metric.replace("Current_", "PrevMonth_")
+
+            current_values = pd.to_numeric(
+                df[metric],
+                errors="coerce"
+            )
+
+            previous_values = pd.to_numeric(
+                df[prev_column],
+                errors="coerce"
+            )
+
+            for current, previous in zip(current_values, previous_values):
+
+                if pd.isna(current) or pd.isna(previous):
+                    continue
+
+                difference = current - previous
+
+                if difference > (threshold * previous):
+                    failed_count += 1
 
         status = "PASS" if failed_count == 0 else "FAIL"
 
-        print(f"{metric}: {status} ({failed_count} failures)")
+        print(f"{metric_name}: {status} ({failed_count} failures)")
 
         results.append({
             "Sheet Name": sheet_name,
-            "Field": metric,
-            "Test Type": "Trend Validation",
+            "Field": metric_name,
+            "Test Type": "Data Validation",
             "Test Name": "Trend Validation",
             "Status (P/F)": status,
             "Failed Count": int(failed_count)
@@ -738,6 +815,7 @@ def main():
     reconciliation_results = validate_reconciliation(config, excel_file)
     cross_sheet_results = validate_cross_sheet(config, excel_file)
     trend_results = validate_trend(config, excel_file)
+
 
     final_results = sheet_results + column_results + duplicate_results + null_results + formula_results + numeric_precision_results + business_rule_results + reconciliation_results + cross_sheet_results + trend_results
 

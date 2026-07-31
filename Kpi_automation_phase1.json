@@ -185,6 +185,7 @@
     "name": "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL",
     "sheetname": "Data Currency",
     "column": "LatestTransactionDate",
+    "referencecolumn": "LastLoadedDate",
     "months": 3
   },
   {
@@ -199,23 +200,38 @@
 ],
 
   "formulavalidation": [
-    {
-        "name": "ACR Calculation",
-        "formula": "((AssociatedPayments + AssociatedAdjustments) / Current_Charges) * 100",
-        "threshold": 100,
-        "operator": "<="
-    },
-    {
-        "name": "GCR Calculation",
-        "formula": "(AssociatedPayments / Current_Charges) * 100",
-        "threshold": 100,
-        "operator": "<="
-    },
-    {
-        "name": "Gross AR Calculation",
-        "formula": "InsuranceAR + PatientAR",
-        "targetcolumn": "GrossAR"
-    }
+  {
+    "name": "ACR Calculation",
+    "validationtype": "threshold",
+    "formula": "((AssociatedPayments + AssociatedAdjustments) / Current_Charges) * 100",
+    "threshold": 100,
+    "operator": "<=",
+    "aggregate": false
+  },
+  {
+    "name": "GCR Calculation",
+    "validationtype": "threshold",
+    "formula": "(AssociatedPayments / Current_Charges) * 100",
+    "threshold": 100,
+    "operator": "<=",
+    "aggregate": false
+  },
+  {
+    "name": "Gross AR Calculation",
+    "validationtype": "comparison",
+    "formula": "InsuranceAR + PatientAR",
+    "sourcecolumns": [
+      "InsuranceAR",
+      "PatientAR"
+    ],
+    "targetcolumn": "GrossAR",
+    "aggregate": true,
+    "groupbycolumns": [
+      "FiscalYear",
+      "FiscalMonth",
+      "PracticeCode"
+    ]
+  }
 ],
 
   "reconciliationvalidation": [
@@ -276,38 +292,50 @@
     "name": "Current Charges",
     "sheet": "KPI",
     "metric": "Current_Charges",
-    "threshold": 30,
-    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+    "previousmetric": "PrevMonth_Charges",
+    "operator": ">",
+    "threshold": 30
   },
   {
     "name": "Current Payments",
     "sheet": "KPI",
     "metric": "Current_Payments",
-    "threshold": 30,
-    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+    "previousmetric": "PrevMonth_Payments",
+    "operator": ">",
+    "threshold": 30
   },
   {
     "name": "Current Adjustments",
     "sheet": "KPI",
     "metric": "Current_Adjustments",
-    "threshold": 30,
-    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+    "previousmetric": "PrevMonth_Adjustments",
+    "operator": ">",
+    "threshold": 30
   },
   {
     "name": "Current Encounters",
     "sheet": "KPI",
     "metric": "Current_Encounters",
-    "threshold": 30,
-    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+    "previousmetric": "PrevMonth_Encounters",
+    "operator": ">",
+    "threshold": 30
   },
   {
     "name": "Gross AR",
     "sheet": "KPI",
     "metric": "GrossAR",
+    "previousmetric": "PrevMonth_GrossAR",
+    "operator": ">",
     "threshold": 30,
-    "condition": "(CurrentMonth - PreviousMonth) <= (30 * PreviousMonth)"
+    "aggregate": true,
+    "groupbycolumns": [
+      "PracticeCode",
+      "FiscalYear",
+      "FiscalMonth"
+    ]
   }
 ],
+
 
   "crosssheetvalidation": [
     {

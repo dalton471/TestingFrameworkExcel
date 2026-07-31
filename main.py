@@ -85,7 +85,7 @@ def validate_sheet_columns(config, excel_file):
             results.append({
                 "Sheet Name": sheet_name,
                 "Field": field["name"],
-                "Test Type": "Sheet Validation",
+                "Test Type": "Field Validation",
                 "Test Name": "Field Existence Testing",
                 "Status (P/F)": status,
                 "Failed Count": 0 if status == "P" else 1
@@ -190,28 +190,53 @@ def validate_formula_check(config, excel_file):
 
     df = pd.read_excel(excel_file, sheet_name="KPI")
 
+    df.columns = (
+        df.columns.str.strip()
+        .str.replace(" ", "_")
+        .str.replace("/", "_")
+    )
+
     for rule in formula_rules:
 
         formula_name = rule["name"]
         formula = rule["formula"]
+        validation_type = rule["validationtype"].lower()
+        aggregate = rule.get("aggregate", False)
 
         try:
 
-            calculated = df.eval(formula)
-
-            if "targetcolumn" in rule:
-
-                target_column = rule["targetcolumn"]
-
-                if target_column not in df.columns:
-                    raise ValueError(f"{target_column} column not found")
-
-                failed_mask = calculated != df[target_column]
-
-            elif "threshold" in rule and "operator" in rule:
+            if validation_type == "threshold":
 
                 threshold = rule["threshold"]
                 operator = rule["operator"]
+
+                if aggregate:
+
+                    group_columns = [
+                        col.strip().replace(" ", "_")
+                        for col in rule["groupbycolumns"]
+                    ]
+
+                    agg_dict = {}
+
+                    for col in rule.get("sourcecolumns", []):
+                        agg_dict[col.strip().replace(" ", "_")] = "sum"
+
+                    grouped_df = (
+                        df.groupby(
+                            group_columns,
+                            as_index=False
+                        )
+                        .agg(agg_dict)
+                    )
+
+                    calculated = grouped_df.eval(formula)
+
+                else:
+
+                    grouped_df = df.copy()
+
+                    calculated = grouped_df.eval(formula)
 
                 if operator == "<=":
                     failed_mask = calculated > threshold
@@ -232,17 +257,95 @@ def validate_formula_check(config, excel_file):
                     failed_mask = calculated == threshold
 
                 else:
-                    raise ValueError(f"Unsupported operator: {operator}")
+                    raise ValueError(
+                        f"Unsupported operator: {operator}"
+                    )
+
+                failed_count = int(failed_mask.sum())
+
+            elif validation_type == "comparison":
+
+                target_column = (
+                    rule["targetcolumn"]
+                    .strip()
+                    .replace(" ", "_")
+                )
+
+                source_columns = [
+                    col.strip().replace(" ", "_")
+                    for col in rule["sourcecolumns"]
+                ]
+
+                if aggregate:
+
+                    group_columns = [
+                        col.strip().replace(" ", "_")
+                        for col in rule["groupbycolumns"]
+                    ]
+
+                    agg_dict = {}
+
+                    for col in source_columns:
+                        agg_dict[col] = "sum"
+
+                    agg_dict[target_column] = "sum"
+
+                    grouped_df = (
+                        df.groupby(
+                            group_columns,
+                            as_index=False
+                        )
+                        .agg(agg_dict)
+                    )
+
+                else:
+
+                    grouped_df = df.copy()
+
+                calculated = grouped_df.eval(formula)
+
+                target_values = grouped_df[target_column]
+
+                failed_mask = (
+                    calculated.round(2)
+                    !=
+                    target_values.round(2)
+                )
+
+                failed_count = int(failed_mask.sum())
+
+                if failed_count > 0:
+
+                    print("\nFAILED ROWS:")
+
+                    display_columns = []
+
+                    if aggregate:
+                        display_columns.extend(group_columns)
+
+                    display_columns.extend(source_columns)
+                    display_columns.append(target_column)
+
+                    print(
+                        grouped_df.loc[
+                            failed_mask,
+                            display_columns
+                        ]
+                    )
 
             else:
-                raise ValueError("Invalid formula validation rule in JSON")
 
-            failed_count = int(failed_mask.sum())
+                raise ValueError(
+                    f"Unsupported validation type: {validation_type}"
+                )
 
             if failed_count == 0:
+
                 status = "P"
                 print(f"{formula_name} - PASS")
+
             else:
+
                 status = "F"
                 print(f"{formula_name} - FAIL ({failed_count} rows)")
 
@@ -256,7 +359,7 @@ def validate_formula_check(config, excel_file):
         results.append({
             "Sheet Name": "KPI",
             "Field": formula_name,
-            "Test Type": "Formula Validation",
+            "Test Type": "Data Quality Validation",
             "Test Name": "Formula Validation",
             "Status (P/F)": status,
             "Failed Count": failed_count
@@ -348,15 +451,19 @@ def validate_business_rule(config, excel_file):
                 left_text = str(left_value).strip().lower()
                 right_text = str(right_value).strip().lower()
 
-                # Case 1 : Both Not Applicable -> PASS
                 if (
                     left_text == "not applicable"
                     and
                     right_text == "not applicable"
                 ):
+                    failed_rows.append({
+                        distinct_column:
+                row[distinct_column],
+                        left_column: left_value,
+                        right_column: right_value
+                    })
                     continue
 
-                # Case 2 : One Not Applicable -> FAIL
                 if (
                     (left_text == "not applicable" and right_text != "not applicable")
                     or
@@ -372,7 +479,6 @@ def validate_business_rule(config, excel_file):
                 left_date = pd.to_datetime(left_value, errors="coerce")
                 right_date = pd.to_datetime(right_value, errors="coerce")
 
-                # Case 3 : NULL / Blank / Invalid -> FAIL
                 if pd.isna(left_date) or pd.isna(right_date):
                     failed_rows.append({
                         distinct_column: row[distinct_column],
@@ -381,7 +487,6 @@ def validate_business_rule(config, excel_file):
                     })
                     continue
 
-                # Case 4 : Latest Transaction Date should be less than Latest Loaded Date
                 if left_date >= right_date:
                     failed_rows.append({
                         distinct_column: row[distinct_column],
@@ -422,26 +527,18 @@ def validate_business_rule(config, excel_file):
         elif rule_name == "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL":
 
             column_name = rule["column"]
+            reference_column = rule["referencecolumn"]
             months = rule["months"]
 
-            df[column_name] = pd.to_datetime(
-            df[column_name],
-            errors="coerce"
-            )
+            df[column_name] = pd.to_datetime(df[column_name],errors="coerce")
 
-            today = pd.Timestamp.today()
-            three_months_old = today - pd.DateOffset(months=months)
+            df[reference_column] = pd.to_datetime(df[reference_column],errors="coerce")
 
-            comparison = (
-            (df[column_name] < three_months_old)
-            &
-            (~df[column_name].isna())
-            )
+            threshold_date = df[reference_column] - pd.DateOffset(months=months)
 
-            failed_rows = df.loc[
-            comparison,
-            [column_name]
-            ]
+            comparison = ((df[column_name] < threshold_date) & (~df[column_name].isna()))
+
+            failed_rows = df.loc[comparison,[column_name, reference_column]]
 
             print("\nFAILED ROWS:")
             print(failed_rows)
@@ -456,14 +553,14 @@ def validate_business_rule(config, excel_file):
                 print(f"{rule_name} - FAIL ({failed_count} rows)")
 
             results.append({
-            "Sheet Name": sheet_name,
-            "Field": rule_name,
-            "Test Type": "Data Validation",
-            "Test Name": "Business Rule Validation",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
+                "Sheet Name": sheet_name,
+                "Field": rule_name,
+                "Test Type": "Data Validation",
+                "Test Name": "Business Rule Validation",
+                "Status (P/F)": status,
+                "Failed Count": failed_count
             })
-
+        
         elif rule_name == "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet":
 
             left_column = rule["leftcolumn"]
@@ -546,59 +643,71 @@ def validate_reconciliation(config, excel_file):
         ]
 
         match_columns = [
-            col.replace(" ", "_")
+            col.strip().replace(" ", "_")
             for col in match_columns
         ]
 
-        source_column = source_column.replace(" ", "_")
-        target_column = target_column.replace(" ", "_")
-        distinct_column = distinct_column.replace(" ", "_")
+        source_column = source_column.strip().replace(" ", "_")
+        target_column = target_column.strip().replace(" ", "_")
+        distinct_column = distinct_column.strip().replace(" ", "_")
+
+        if source_column not in source_df.columns:
+            print(f"Source column '{source_column}' not found.")
+            continue
+
+        if target_column not in target_df.columns:
+            print(f"Target column '{target_column}' not found.")
+            continue
+
+        source_df[source_column] = pd.to_numeric(
+            source_df[source_column],
+            errors="coerce"
+        ).fillna(0)
+
+        target_df[target_column] = pd.to_numeric(
+            target_df[target_column],
+            errors="coerce"
+        ).fillna(0)
+
+        source_df = (
+            source_df
+            .groupby(match_columns, as_index=False)
+            .agg({source_column: "sum"})
+        )
+
+        target_df = (
+            target_df
+            .groupby(match_columns, as_index=False)
+            .agg({target_column: "sum"})
+        )
 
         merged_df = pd.merge(
             source_df,
             target_df,
             on=match_columns,
-            how="inner"
-        )
+            how="outer"
+        ).fillna(0)
 
         print(f"\n{rule_name}")
         print(f"Matched Rows : {len(merged_df)}")
 
         print(f"\nComparing {source_column} with {target_column}")
 
-        if source_column not in merged_df.columns:
-            print(f"Source column '{source_column}' not found.")
-            continue
+        comparison = (merged_df[source_column] != merged_df[target_column])
 
-        if target_column not in merged_df.columns:
-            print(f"Target column '{target_column}' not found.")
-            continue
+        failed_rows = merged_df.loc[comparison].copy()
 
-        source_values = pd.to_numeric(
-            merged_df[source_column],
-            errors="coerce"
-        ).fillna(0)
-
-        target_values = pd.to_numeric(
-            merged_df[target_column],
-            errors="coerce"
-        ).fillna(0)
-
-        comparison = source_values != target_values
+        if distinct_column in failed_rows.columns:
+            failed_rows = failed_rows.drop_duplicates(
+                subset=[distinct_column]
+            )
 
         display_columns = list(dict.fromkeys(
             match_columns +
-            [distinct_column, source_column, target_column]
+            [source_column, target_column]
         ))
 
-        failed_rows = merged_df.loc[
-            comparison,
-            display_columns
-        ]
-
-        failed_rows = failed_rows.drop_duplicates(
-            subset=[distinct_column]
-        )
+        failed_rows = failed_rows[display_columns]
 
         failed_count = len(failed_rows)
 
@@ -691,7 +800,7 @@ def validate_cross_sheet(config, excel_file):
         else:
             continue
 
-        status = "PASS" if failed_count == 0 else "FAIL"
+        status = "P" if failed_count == 0 else "F"
 
         print(f"{rule_name}: {status} ({failed_count} failures)")
 
@@ -721,11 +830,15 @@ def validate_trend(config, excel_file):
         sheet_name = rule["sheet"]
         metric_name = rule["name"]
         metric = rule["metric"]
+        previous_metric = rule["previousmetric"]
+        operator = rule["operator"]
         threshold = rule["threshold"]
+
+        aggregate = rule.get("aggregate", False)
+        groupby_columns = rule.get("groupbycolumns", [])
 
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
-        # Normalize column names
         df.columns = (
             df.columns.str.strip()
             .str.replace(" ", "_")
@@ -734,52 +847,87 @@ def validate_trend(config, excel_file):
 
         failed_count = 0
 
-        if metric == "GrossAR":
+        if aggregate:
 
-            df = df.sort_values(
-                by=["PracticeCode", "FiscalYear", "FiscalMonth"]
-            ).reset_index(drop=True)
+            df[metric] = pd.to_numeric(df[metric],errors="coerce").fillna(0)
 
-            previous_values = (
-                df.groupby("PracticeCode")[metric]
-                .shift(1)
-            )
+            df = (df.groupby(groupby_columns,as_index=False).agg({metric: "sum"}))
 
-            for current, previous in zip(df[metric], previous_values):
+            df = df.sort_values(by=groupby_columns).reset_index(drop=True)
+
+            previous_values = (df.groupby(groupby_columns[0])[metric].shift(1))
+
+            for index, (current, previous) in enumerate(zip(df[metric], previous_values)):
 
                 if pd.isna(previous):
                     continue
 
                 difference = current - previous
 
-                if difference > (threshold * previous):
+                if operator == ">":
+                    condition = difference > (threshold * previous)
+                elif operator == "<":
+                    condition = difference < (threshold * previous)
+                elif operator == ">=":
+                    condition = difference >= (threshold * previous)
+                elif operator == "<=":
+                    condition = difference <= (threshold * previous)
+                elif operator == "==":
+                    condition = difference == (threshold * previous)
+                else:
+                    raise ValueError(f"Unsupported operator: {operator}")
+
+                if condition:
                     failed_count += 1
+                    print(f"{metric_name} -> {df.loc[index, 'PracticeCode']}")
 
         else:
 
-            prev_column = metric.replace("Current_", "PrevMonth_")
+            current_values = pd.to_numeric(df[metric],errors="coerce")
 
-            current_values = pd.to_numeric(
-                df[metric],
-                errors="coerce"
-            )
+            previous_values = pd.to_numeric(df[previous_metric],errors="coerce")
 
-            previous_values = pd.to_numeric(
-                df[prev_column],
-                errors="coerce"
-            )
-
-            for current, previous in zip(current_values, previous_values):
+            for index, (current, previous) in enumerate(zip(current_values, previous_values)):
 
                 if pd.isna(current) or pd.isna(previous):
                     continue
 
                 difference = current - previous
 
-                if difference > (threshold * previous):
+                if operator == ">":
+                    condition = difference > (threshold * previous)
+
+                elif operator == "<":
+                    condition = difference < (threshold * previous)
+
+                elif operator == ">=":
+                    condition = difference >= (threshold * previous)
+
+                elif operator == "<=":
+                    condition = difference <= (threshold * previous)
+
+                elif operator == "==":
+                    condition = difference == (threshold * previous)
+
+                else:
+                    raise ValueError(f"Unsupported operator: {operator}")
+
+                print(
+                    df.loc[index, "PracticeCode"],
+                    current,
+                    previous,
+                    difference,
+                    threshold * previous,
+                    condition
+                )
+
+                if condition:
+
                     failed_count += 1
 
-        status = "PASS" if failed_count == 0 else "FAIL"
+                    print(f"{metric_name} -> {df.loc[index, 'PracticeCode']}")
+
+        status = "P" if failed_count == 0 else "F"
 
         print(f"{metric_name}: {status} ({failed_count} failures)")
 
@@ -792,12 +940,14 @@ def validate_trend(config, excel_file):
             "Failed Count": int(failed_count)
         })
 
+    print("\nTrend Validation Completed.")
+
     return results
 
 def main():
 
     json_file = "Kpi_automation_phase1.json"
-    excel_file = "KPI_Sample.xlsx"
+    excel_file = "KPI_Sample (2).xlsx"
 
     config = load_json(json_file)
     workbook = load_excel(excel_file)

@@ -831,11 +831,14 @@ def validate_trend(config, excel_file):
         metric_name = rule["name"]
         metric = rule["metric"]
         previous_metric = rule["previousmetric"]
+
         operator = rule["operator"]
         threshold = rule["threshold"]
 
         aggregate = rule.get("aggregate", False)
         groupby_columns = rule.get("groupbycolumns", [])
+
+        distinct_column = rule.get("distinctcolumn", "PracticeCode")
 
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
@@ -849,15 +852,30 @@ def validate_trend(config, excel_file):
 
         if aggregate:
 
-            df[metric] = pd.to_numeric(df[metric],errors="coerce").fillna(0)
+            df[metric] = pd.to_numeric(
+                df[metric],
+                errors="coerce"
+            ).fillna(0)
 
-            df = (df.groupby(groupby_columns,as_index=False).agg({metric: "sum"}))
+            df = (
+                df.groupby(
+                    groupby_columns,
+                    as_index=False
+                ).agg({metric: "sum"})
+            )
 
-            df = df.sort_values(by=groupby_columns).reset_index(drop=True)
+            df = df.sort_values(
+                by=groupby_columns
+            ).reset_index(drop=True)
 
-            previous_values = (df.groupby(groupby_columns[0])[metric].shift(1))
+            previous_values = (
+                df.groupby(groupby_columns[0])[metric]
+                .shift(1)
+            )
 
-            for index, (current, previous) in enumerate(zip(df[metric], previous_values)):
+            for index, (current, previous) in enumerate(
+                zip(df[metric], previous_values)
+            ):
 
                 if pd.isna(previous):
                     continue
@@ -866,58 +884,85 @@ def validate_trend(config, excel_file):
 
                 if operator == ">":
                     condition = difference > (threshold * previous)
+
                 elif operator == "<":
                     condition = difference < (threshold * previous)
+
                 elif operator == ">=":
                     condition = difference >= (threshold * previous)
+
                 elif operator == "<=":
                     condition = difference <= (threshold * previous)
+
                 elif operator == "==":
                     condition = difference == (threshold * previous)
+
                 else:
-                    raise ValueError(f"Unsupported operator: {operator}")
+                    raise ValueError(
+                        f"Unsupported operator: {operator}"
+                    )
 
                 if condition:
+
                     failed_count += 1
-                    print(f"{metric_name} -> {df.loc[index, 'PracticeCode']}")
+
+                    print(
+                        f"{metric_name} -> "
+                        f"{df.loc[index, 'PracticeCode']}"
+                    )
 
         else:
 
-            current_values = pd.to_numeric(df[metric],errors="coerce")
+            current_values = pd.to_numeric(
+                df[metric],
+                errors="coerce"
+            )
 
-            previous_values = pd.to_numeric(df[previous_metric],errors="coerce")
+            previous_values = pd.to_numeric(
+                df[previous_metric],
+                errors="coerce"
+            )
 
-            for index, (current, previous) in enumerate(zip(current_values, previous_values)):
+            for index, (current, previous) in enumerate(
+                zip(current_values, previous_values)
+            ):
 
                 if pd.isna(current) or pd.isna(previous):
                     continue
 
-                difference = current - previous
+                if previous == 0:
+                    continue
+
+                deviation = (
+                    ((current - previous) / previous) * 100
+                )
 
                 if operator == ">":
-                    condition = difference > (threshold * previous)
+                    condition = deviation > threshold
 
                 elif operator == "<":
-                    condition = difference < (threshold * previous)
+                    condition = deviation < threshold
 
                 elif operator == ">=":
-                    condition = difference >= (threshold * previous)
+                    condition = deviation >= threshold
 
                 elif operator == "<=":
-                    condition = difference <= (threshold * previous)
+                    condition = deviation <= threshold
 
                 elif operator == "==":
-                    condition = difference == (threshold * previous)
+                    condition = deviation == threshold
 
                 else:
-                    raise ValueError(f"Unsupported operator: {operator}")
+                    raise ValueError(
+                        f"Unsupported operator: {operator}"
+                    )
 
                 print(
-                    df.loc[index, "PracticeCode"],
+                    df.loc[index, distinct_column],
                     current,
                     previous,
-                    difference,
-                    threshold * previous,
+                    deviation,
+                    threshold,
                     condition
                 )
 
@@ -925,7 +970,10 @@ def validate_trend(config, excel_file):
 
                     failed_count += 1
 
-                    print(f"{metric_name} -> {df.loc[index, 'PracticeCode']}")
+                    print(
+                        f"{metric_name} -> "
+                        f"{df.loc[index, distinct_column]}"
+                    )
 
         status = "P" if failed_count == 0 else "F"
 

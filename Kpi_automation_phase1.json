@@ -292,50 +292,54 @@
     "name": "Current Charges",
     "sheet": "KPI",
     "metric": "Current_Charges",
-    "previousmetric": "PrevMonth_Charges",
+    "previousmetric": "Prev6_Avg_Charges",
     "operator": ">",
-    "threshold": 30
-  },
-  {
+    "threshold": 30,
+    "distinctcolumn": "PracticeCode"
+},
+{
     "name": "Current Payments",
     "sheet": "KPI",
     "metric": "Current_Payments",
-    "previousmetric": "PrevMonth_Payments",
+    "previousmetric": "Prev6_Avg_Payments",
     "operator": ">",
-    "threshold": 30
-  },
-  {
+    "threshold": 30,
+    "distinctcolumn": "PracticeCode"
+},
+{
     "name": "Current Adjustments",
     "sheet": "KPI",
     "metric": "Current_Adjustments",
-    "previousmetric": "PrevMonth_Adjustments",
+    "previousmetric": "Prev6_Avg_Adjustments",
     "operator": ">",
-    "threshold": 30
-  },
-  {
+    "threshold": 30,
+    "distinctcolumn": "PracticeCode"
+},
+{
     "name": "Current Encounters",
     "sheet": "KPI",
     "metric": "Current_Encounters",
-    "previousmetric": "PrevMonth_Encounters",
+    "previousmetric": "Prev6_Avg_Encounters",
     "operator": ">",
-    "threshold": 30
-  },
-  {
+    "threshold": 30,
+    "distinctcolumn": "PracticeCode"
+},
+{
     "name": "Gross AR",
     "sheet": "KPI",
     "metric": "GrossAR",
     "previousmetric": "PrevMonth_GrossAR",
     "operator": ">",
     "threshold": 30,
+    "distinctcolumn": "PracticeCode",
     "aggregate": true,
     "groupbycolumns": [
-      "PracticeCode",
-      "FiscalYear",
-      "FiscalMonth"
+        "PracticeCode",
+        "FiscalYear",
+        "FiscalMonth"
     ]
-  }
+}
 ],
-
 
   "crosssheetvalidation": [
     {

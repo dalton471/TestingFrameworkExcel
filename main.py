@@ -390,11 +390,19 @@ def validate_numeric_precision(config, excel_file):
 
             for value in df[column].dropna():
 
-                decimal_part = str(value).split(".")
+                value = round(float(value), precision)
+
+                value_str = str(value)
+
+                decimal_part = value_str.split(".")
 
                 if len(decimal_part) == 2:
 
-                    if len(decimal_part[1]) > precision:
+                    decimal_places = len(
+                        decimal_part[1].rstrip("0")
+                    )
+
+                    if decimal_places > precision:
                         failed_count += 1
 
             if failed_count == 0:
@@ -897,6 +905,7 @@ def validate_trend(config, excel_file):
                 elif operator == "==":
                     condition = difference == (threshold * previous)
 
+
                 else:
                     raise ValueError(
                         f"Unsupported operator: {operator}"
@@ -937,25 +946,10 @@ def validate_trend(config, excel_file):
                     ((current - previous) / previous) * 100
                 )
 
-                if operator == ">":
-                    condition = deviation > threshold
+                # PASS  : -threshold <= deviation <= +threshold
+                # FAIL  : deviation < -threshold or deviation > threshold
 
-                elif operator == "<":
-                    condition = deviation < threshold
-
-                elif operator == ">=":
-                    condition = deviation >= threshold
-
-                elif operator == "<=":
-                    condition = deviation <= threshold
-
-                elif operator == "==":
-                    condition = deviation == threshold
-
-                else:
-                    raise ValueError(
-                        f"Unsupported operator: {operator}"
-                    )
+                condition = (deviation < -threshold or deviation > threshold)
 
                 print(
                     df.loc[index, distinct_column],

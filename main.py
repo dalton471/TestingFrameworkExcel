@@ -10,6 +10,7 @@ def load_excel(excel_file):
     workbook = pd.ExcelFile(excel_file)
     return workbook
 
+
 def validate_sheet_list(config, workbook):
 
     results = []
@@ -905,7 +906,6 @@ def validate_trend(config, excel_file):
                 elif operator == "==":
                     condition = difference == (threshold * previous)
 
-
                 else:
                     raise ValueError(
                         f"Unsupported operator: {operator}"
@@ -921,6 +921,18 @@ def validate_trend(config, excel_file):
                     )
 
         else:
+
+            df = (
+                df.groupby(
+                    ["PracticeCode",
+            "FiscalYear", "FiscalMonth"],
+                    as_index=False
+                )
+                .agg({
+                    metric: "sum",
+                    previous_metric: "sum"
+                })
+            )
 
             current_values = pd.to_numeric(
                 df[metric],
@@ -946,10 +958,9 @@ def validate_trend(config, excel_file):
                     ((current - previous) / previous) * 100
                 )
 
-                # PASS  : -threshold <= deviation <= +threshold
-                # FAIL  : deviation < -threshold or deviation > threshold
+                condition = abs(deviation) > threshold
 
-                condition = (deviation < -threshold or deviation > threshold)
+                status_text = "FAIL" if condition else "PASS"
 
                 print(
                     df.loc[index, distinct_column],
@@ -957,7 +968,7 @@ def validate_trend(config, excel_file):
                     previous,
                     deviation,
                     threshold,
-                    condition
+                    status_text
                 )
 
                 if condition:

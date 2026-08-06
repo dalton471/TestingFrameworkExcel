@@ -1,3 +1,5 @@
+
+
 import json
 import pandas as pd
 
@@ -50,7 +52,23 @@ def validate_sheet_columns(config, excel_file):
 
     for sheet_name, sheet_info in sheet_validation.items():
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+           df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Sheet Validation",
+                "Test Name": "Sheet Existence Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         excel_columns = []
 
@@ -93,6 +111,7 @@ def validate_sheet_columns(config, excel_file):
             })
 
     return results
+
 def validate_duplicate_check(config, excel_file):
 
     results = []
@@ -106,7 +125,40 @@ def validate_duplicate_check(config, excel_file):
         sheet_name = rule["sheetname"]
         columns = rule["columns"]
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+           df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Data Quality Validation",
+                "Test Name": "Duplicate Check",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
+
+        missing_columns = [col for col in columns if col not in df.columns]
+
+        if missing_columns:
+
+            print(f"{sheet_name} : Missing Column(s) - {', '.join(missing_columns)}")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": ", ".join(missing_columns),
+                "Test Type": "Data Quality Validation",
+                "Test Name": "Duplicate Check",
+                "Status (P/F)": "F",
+                "Failed Count": len(missing_columns)
+            })
+
+            continue
 
         duplicate_rows = df[df.duplicated(subset=columns, keep=False)]
 
@@ -145,7 +197,23 @@ def validate_null_check(config, excel_file):
         sheet_name = rule["sheetname"]
         columns = rule["columns"]
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+            df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Data Quality Validation",
+                "Test Name": "Null Check",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         status = "P"
         failed_count = 0
@@ -157,6 +225,7 @@ def validate_null_check(config, excel_file):
             if column not in df.columns:
                 print(f"{sheet_name} - {column} - Column Not Found")
                 status = "F"
+                failed_count += 1
                 continue
 
             null_count = df[column].isnull().sum()
@@ -189,8 +258,22 @@ def validate_formula_check(config, excel_file):
 
     print("\n========== FORMULA VALIDATION ==========\n")
 
-    df = pd.read_excel(excel_file, sheet_name="KPI")
+    try:
+        df = pd.read_excel(excel_file, sheet_name="KPI")
 
+    except Exception:
+
+        print("KPI : Sheet Not Found")
+
+        return [{
+           "Sheet Name": "KPI",
+           "Field": "Sheet",
+           "Test Type": "Data Quality Validation",
+           "Test Name": "Formula Validation",
+           "Status (P/F)": "F",
+           "Failed Count": 1
+        }]
+    
     df.columns = (
         df.columns.str.strip()
         .str.replace(" ", "_")
@@ -381,9 +464,40 @@ def validate_numeric_precision(config, excel_file):
         sheet_name = rule["sheetname"]
         precision = rule["precision"]
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+            df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Data Quality Validation",
+                "Test Name": "Numeric Precision",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         numeric_columns = df.select_dtypes(include="number").columns
+
+        if len(numeric_columns) == 0:
+
+            print(f"{sheet_name} : No Numeric Columns Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Numeric Columns",
+                "Test Type": "Data Quality Validation",
+                "Test Name": "Numeric Precision",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         for column in numeric_columns:
 
@@ -391,17 +505,11 @@ def validate_numeric_precision(config, excel_file):
 
             for value in df[column].dropna():
 
-                value = round(float(value), precision)
-
                 value_str = str(value)
 
-                decimal_part = value_str.split(".")
+                if "." in value_str:
 
-                if len(decimal_part) == 2:
-
-                    decimal_places = len(
-                        decimal_part[1].rstrip("0")
-                    )
+                    decimal_places = len(value_str.split(".")[1])
 
                     if decimal_places > precision:
                         failed_count += 1
@@ -437,12 +545,74 @@ def validate_business_rule(config, excel_file):
         rule_name = rule["name"]
         sheet_name = rule["sheetname"]
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+            df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Business Rule Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         print("\nRule :", rule_name)
         print("Sheet:", sheet_name)
         print("Columns:")
         print(df.columns.tolist())
+
+        required_columns = []
+
+        if "leftcolumn" in rule:
+
+            required_columns.append(rule["leftcolumn"])
+
+        if "rightcolumn" in rule:
+
+            required_columns.append(rule["rightcolumn"])
+
+        if "column" in rule:
+
+            required_columns.append(rule["column"])
+
+        if "referencecolumn" in rule:
+
+            required_columns.append(rule["referencecolumn"])
+
+        if "distinctcolumn" in rule:
+
+            required_columns.append(rule["distinctcolumn"])
+
+        if "lookupkeyleft" in rule:
+
+            required_columns.append(rule["lookupkeyleft"])
+
+        missing_columns = [
+            col for col in required_columns
+            if col not in df.columns
+        ]
+
+        if missing_columns:
+
+            print(f"{sheet_name} : Missing Column(s) - {', '.join(missing_columns)}")
+
+            results.append({
+               "Sheet Name": sheet_name,
+               "Field": ", ".join(missing_columns),
+               "Test Type": "Data Validation",
+               "Test Name": "Business Rule Validation",
+               "Status (P/F)": "F",
+               "Failed Count": len(missing_columns)
+            })
+
+            continue
 
         if rule_name == "Latest Transaction Date should be less than Latest Loaded Date":
 
@@ -539,13 +709,41 @@ def validate_business_rule(config, excel_file):
             reference_column = rule["referencecolumn"]
             months = rule["months"]
 
-            df[column_name] = pd.to_datetime(df[column_name],errors="coerce")
+            original_values = (
+                df[column_name]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+            )
 
-            df[reference_column] = pd.to_datetime(df[reference_column],errors="coerce")
+            df[column_name] = pd.to_datetime(
+                df[column_name],
+                errors="coerce"
+            )
 
-            threshold_date = df[reference_column] - pd.DateOffset(months=months)
+            df[reference_column] = pd.to_datetime(
+                df[reference_column],
+                errors="coerce"
+            )
 
-            comparison = ((df[column_name] < threshold_date) & (~df[column_name].isna()))
+            threshold_date = (
+                df[reference_column]
+                - pd.DateOffset(months=months)
+            )
+
+            comparison = (
+                (df[column_name] < threshold_date)
+                &
+                (
+                    ~original_values.isin([
+                        "null",
+                        "not applicable",
+                        "no latesttransactiondate",
+                        "no latest transaction date",
+                        "no latest transaction date available"
+                    ])
+                )
+            )
 
             failed_rows = df.loc[comparison,[column_name, reference_column]]
 
@@ -578,7 +776,23 @@ def validate_business_rule(config, excel_file):
             lookup_key_right = rule["lookupkeyright"]
             right_column = rule["rightcolumn"]
 
-            lookup_df = pd.read_excel(excel_file,sheet_name=lookup_sheet)
+            try:
+                lookup_df = pd.read_excel(excel_file, sheet_name=lookup_sheet)
+
+            except Exception:
+
+                print(f"{lookup_sheet} : Lookup Sheet Not Found")
+
+                results.append({
+                    "Sheet Name": lookup_sheet,
+                    "Field": "Lookup Sheet",
+                    "Test Type": "Data Validation",
+                    "Test Name": "Business Rule Validation",
+                    "Status (P/F)": "F",
+                    "Failed Count": 1
+                })
+
+                continue
 
             merged_df = df.merge(lookup_df,left_on=lookup_key_left,right_on=lookup_key_right,how="left")
 
@@ -638,8 +852,41 @@ def validate_reconciliation(config, excel_file):
         target_column = rule["targetcolumn"]
         distinct_column = rule["distinctcolumn"]
 
-        source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
-        target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
+        try:
+            source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
+
+        except Exception:
+
+            print(f"{source_sheet} : Source Sheet Not Found")
+
+            results.append({
+                "Sheet Name": source_sheet,
+                "Field": "Source Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Reconciliation Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
+
+        try:
+            target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
+
+        except Exception:
+
+            print(f"{target_sheet} : Target Sheet Not Found")
+
+            results.append({
+                "Sheet Name": target_sheet,
+                "Field": "Target Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Reconciliation Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         source_df.columns = [
             str(col).strip().replace(" ", "_")
@@ -660,12 +907,56 @@ def validate_reconciliation(config, excel_file):
         target_column = target_column.strip().replace(" ", "_")
         distinct_column = distinct_column.strip().replace(" ", "_")
 
+        missing_match_columns = [
+            col for col in match_columns
+            if col not in source_df.columns or col not in target_df.columns
+        ]
+
+        if missing_match_columns:
+
+            print(
+                f"Missing Match Column(s): {', '.join(missing_match_columns)}"
+            )
+
+            results.append({
+                "Sheet Name": source_sheet,
+                "Field": ", ".join(missing_match_columns),
+                "Test Type": "Data Validation",
+                "Test Name": "Reconciliation Validation",
+                "Status (P/F)": "F",
+                "Failed Count": len(missing_match_columns)
+            })
+
+            continue
+
         if source_column not in source_df.columns:
-            print(f"Source column '{source_column}' not found.")
+
+            print(f"{source_sheet} : Missing Source Column - {source_column}")
+
+            results.append({
+                "Sheet Name": source_sheet,
+                "Field": source_column,
+                "Test Type": "Data Validation",
+                "Test Name": "Reconciliation Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
             continue
 
         if target_column not in target_df.columns:
-            print(f"Target column '{target_column}' not found.")
+
+            print(f"{target_sheet} : Missing Target Column - {target_column}")
+
+            results.append({
+                "Sheet Name": target_sheet,
+                "Field": target_column,
+                "Test Type": "Data Validation",
+                "Test Name": "Reconciliation Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+ 
             continue
 
         source_df[source_column] = pd.to_numeric(
@@ -753,27 +1044,120 @@ def validate_cross_sheet(config, excel_file):
         match_column = rule.get("matchcolumn")
         validation_type = rule.get("validationtype")
 
-        source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
-        target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
+        try:
+            source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
+
+        except Exception:
+
+            print(f"{source_sheet} : Source Sheet Not Found")
+
+            results.append({
+                "Sheet Name": source_sheet,
+                "Field": "Source Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Cross Sheet Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
+
+        try:
+            target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
+
+        except Exception:
+
+            print(f"{target_sheet} : Target Sheet Not Found")
+
+            results.append({
+                "Sheet Name": target_sheet,
+                "Field": "Target Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Cross Sheet Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         source_df.columns = source_df.columns.str.strip().str.lower()
         target_df.columns = target_df.columns.str.strip().str.lower()
 
         match_col = match_column.strip().lower()
 
+        if match_col not in source_df.columns:
+
+            print(f"{source_sheet} : Missing Match Column - {match_col}")
+
+            results.append({
+                "Sheet Name": source_sheet,
+                "Field": match_col,
+                "Test Type": "Data Validation",
+                "Test Name": "Cross Sheet Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
+
+        if match_col not in target_df.columns:
+
+            print(f"{target_sheet} : Missing Match Column - {match_col}")
+
+            results.append({
+                "Sheet Name": target_sheet,
+                "Field": match_col,
+                "Test Type": "Data Validation",
+                "Test Name": "Cross Sheet Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
+
         if validation_type == "valuecomparison":
 
             source_column = rule.get("sourcecolumn").strip().lower()
             target_column = rule.get("targetcolumn").strip().lower()
 
+            if source_column not in source_df.columns:
+
+                print(f"{source_sheet} : Missing Column - {source_column}")
+
+                results.append({
+                    "Sheet Name": source_sheet,
+                    "Field": source_column,
+                    "Test Type": "Data Validation",
+                    "Test Name": "Cross Sheet Validation",
+                    "Status (P/F)": "F",
+                    "Failed Count": 1
+                })
+
+                continue
+
+            if target_column not in target_df.columns:
+
+                print(f"{target_sheet} : Missing Column - {target_column}")
+
+                results.append({
+                    "Sheet Name": target_sheet,
+                    "Field": target_column,
+                    "Test Type": "Data Validation",
+                    "Test Name": "Cross Sheet Validation",
+                    "Status (P/F)": "F",
+                    "Failed Count": 1
+                })
+
+                continue
+
             merged_df = pd.merge(
                 source_df[[match_col, source_column]],
                 target_df[[match_col, target_column]],
                 on=match_col,
-                how="inner"
+                how="outer"
             )
 
-            failed_count = (
+            comparison = (
                 merged_df[source_column]
                 .fillna("")
                 .astype(str)
@@ -785,7 +1169,15 @@ def validate_cross_sheet(config, excel_file):
                 .astype(str)
                 .str.strip()
                 .str.lower()
-            ).sum()
+            )
+
+            missing_records = (
+                merged_df[source_column].isna()
+                |
+                merged_df[target_column].isna()
+            )
+
+            failed_count = (comparison | missing_records).sum()
 
         elif validation_type == "existencecheck":
 
@@ -803,8 +1195,16 @@ def validate_cross_sheet(config, excel_file):
                 .str.strip()
             )
 
-            missing_keys = source_keys - target_keys
+            missing_in_target = source_keys - target_keys
+            missing_in_source = target_keys - source_keys
+
+            missing_keys = missing_in_target.union(missing_in_source)
+
             failed_count = len(missing_keys)
+
+            if failed_count > 0:
+                print("\nMissing Practice Codes:")
+                print(missing_keys)
 
         else:
             continue
@@ -849,13 +1249,67 @@ def validate_trend(config, excel_file):
 
         distinct_column = rule.get("distinctcolumn", "PracticeCode")
 
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+        try:
+            df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        except Exception:
+
+            print(f"{sheet_name} : Sheet Not Found")
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": "Sheet",
+                "Test Type": "Data Validation",
+                "Test Name": "Trend Validation",
+                "Status (P/F)": "F",
+                "Failed Count": 1
+            })
+
+            continue
 
         df.columns = (
             df.columns.str.strip()
             .str.replace(" ", "_")
             .str.replace("/", "_")
         )
+
+        required_columns = [metric]
+
+        if aggregate:
+
+            required_columns.extend(groupby_columns)
+
+        else:
+
+            required_columns.extend([
+                previous_metric,
+                "PracticeCode",
+                "FiscalYear",
+                "FiscalMonth"
+            ])
+
+        missing_columns = [
+            col for col in required_columns
+            if col not in df.columns
+        ]
+
+        if missing_columns:
+
+            print(
+                f"{sheet_name} : Missing Column(s) - "
+                f"{', '.join(missing_columns)}"
+            )
+
+            results.append({
+                "Sheet Name": sheet_name,
+                "Field": ", ".join(missing_columns),
+                "Test Type": "Data Validation",
+                "Test Name": "Trend Validation",
+                "Status (P/F)": "F",
+                "Failed Count": len(missing_columns)
+            })
+
+            continue
 
         failed_count = 0
 

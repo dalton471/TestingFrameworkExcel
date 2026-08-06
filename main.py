@@ -889,28 +889,30 @@ def validate_trend(config, excel_file):
                 if pd.isna(previous):
                     continue
 
-                difference = current - previous
+                if previous == 0:
+                    continue
+
+                deviation = ((current - previous) / previous) * 100
 
                 if operator == ">":
-                    condition = difference > (threshold * previous)
+                    condition = abs(deviation) > threshold
 
                 elif operator == "<":
-                    condition = difference < (threshold * previous)
+                    condition = abs(deviation) < threshold
 
                 elif operator == ">=":
-                    condition = difference >= (threshold * previous)
+                    condition = abs(deviation) >= threshold
 
                 elif operator == "<=":
-                    condition = difference <= (threshold * previous)
+                    condition = abs(deviation) <= threshold
 
                 elif operator == "==":
-                    condition = difference == (threshold * previous)
+                    condition = abs(deviation) == threshold
 
                 else:
                     raise ValueError(
                         f"Unsupported operator: {operator}"
                     )
-
                 if condition:
 
                     failed_count += 1

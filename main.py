@@ -1,1469 +1,301 @@
+"""
+main.py
+--------
+Entry point of the KPI Validation Automation Framework.
 
+This file does NOT contain any validation logic itself. Its only job
+is to ORCHESTRATE the pipeline, in this order:
 
+    1. Load the JSON configuration file.
+    2. Load the input file (single Excel/CSV file, or every supported
+       file inside an input folder).
+    3. Call every validation function (from validations/validations.py).
+    4. Collect all the results together.
+    5. Generate the Validation_Report.xlsx (via utils/report_generator.py).
+
+Unlike the previous version, NOTHING is hard-coded. All paths are
+supplied on the command line via argparse:
+
+    python main.py --config config/kpi_automation_phase1.json --input input/KPI.xlsx
+    python main.py --config config/kpi_automation_phase1.json --input input/ --output output/Validation_Report.xlsx
+    python main.py --config config/rules.json --input input/data.csv
+
+Run "python main.py --help" to see all available options.
+"""
+
+import os
+import sys
 import json
+import argparse
+import traceback
+
 import pandas as pd
 
-def load_json(json_file):
-    with open(json_file, "r") as file:
-        config = json.load(file)
-    return config
-
-def load_excel(excel_file):
-    workbook = pd.ExcelFile(excel_file)
-    return workbook
-
-
-def validate_sheet_list(config, workbook):
-
-    results = []
-
-    json_sheets = config["sheetlist"]
-    excel_sheets = workbook.sheet_names
-
-    print("\n========== SHEET LIST VALIDATION ==========\n")
-
-    for sheet in json_sheets:
-
-        if sheet in excel_sheets:
-            status = "P"
-            print(f"{sheet} - PASS")
-        else:
-            status = "F"
-            print(f"{sheet} - FAIL")
-
-        results.append({
-            "Sheet Name": sheet,
-            "Field": "Sheet",
-            "Test Type": "Sheet Validation",
-            "Test Name": "Sheet Existence Testing",
-            "Status (P/F)": status,
-            "Failed Count": 0 if status == "P" else 1
-        })
-
-    return results
-
-def validate_sheet_columns(config, excel_file):
-
-    results = []
-
-    sheet_validation = config["sheetvalidation"]
-
-    print("\n========== SHEET COLUMN VALIDATION ==========\n")
-
-    for sheet_name, sheet_info in sheet_validation.items():
-
-        try:
-           df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Sheet Validation",
-                "Test Name": "Sheet Existence Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        excel_columns = []
-
-        for col in df.columns:
-            clean_col = (
-                str(col)
-                .strip()
-                .lower()
-                .replace(" ", "")
-                .replace("_", "")
-            )
-            excel_columns.append(clean_col)
-
-        print(f"\n{sheet_name}")
-
-        for field in sheet_info["fields"]:
-
-            json_column = (
-                field["name"]
-                .strip()
-                .lower()
-                .replace(" ", "")
-                .replace("_", "")
-            )
-
-            if json_column in excel_columns:
-                status = "P"
-                print(f"{field['name']} - PASS")
-            else:
-                status = "F"
-                print(f"{field['name']} - FAIL")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": field["name"],
-                "Test Type": "Field Validation",
-                "Test Name": "Field Existence Testing",
-                "Status (P/F)": status,
-                "Failed Count": 0 if status == "P" else 1
-            })
-
-    return results
-
-def validate_duplicate_check(config, excel_file):
-
-    results = []
-
-    duplicate_validation = config["dataqualityvalidation"]["duplicatecheck"]
-
-    print("\n========== DUPLICATE CHECK VALIDATION ==========\n")
-
-    for rule in duplicate_validation:
-
-        sheet_name = rule["sheetname"]
-        columns = rule["columns"]
-
-        try:
-           df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Duplicate Check",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        missing_columns = [col for col in columns if col not in df.columns]
-
-        if missing_columns:
-
-            print(f"{sheet_name} : Missing Column(s) - {', '.join(missing_columns)}")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": ", ".join(missing_columns),
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Duplicate Check",
-                "Status (P/F)": "F",
-                "Failed Count": len(missing_columns)
-            })
-
-            continue
-
-        duplicate_rows = df[df.duplicated(subset=columns, keep=False)]
-
-        duplicate_count = len(duplicate_rows)
-
-        if duplicate_count == 0:
-            status = "P"
-            print(f"{sheet_name} - PASS")
-        else:
-            status = "F"
-            print(f"{sheet_name} - FAIL ({duplicate_count} duplicate rows)")
-
-        field_name = ", ".join(columns)
-
-        results.append({
-            "Sheet Name": sheet_name,
-            "Field": field_name,
-            "Test Type": "Data Quality Validation",
-            "Test Name": "Duplicate Check",
-            "Status (P/F)": status,
-            "Failed Count": duplicate_count
-        })
-
-    return results
-
-def validate_null_check(config, excel_file):
-
-    results = []
-
-    null_validation = config["dataqualityvalidation"]["nullcheck"]
-
-    print("\n========== NULL CHECK VALIDATION ==========\n")
-
-    for rule in null_validation:
-
-        sheet_name = rule["sheetname"]
-        columns = rule["columns"]
-
-        try:
-            df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Null Check",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        status = "P"
-        failed_count = 0
-
-        field_name = ", ".join(columns)
-
-        for column in columns:
-
-            if column not in df.columns:
-                print(f"{sheet_name} - {column} - Column Not Found")
-                status = "F"
-                failed_count += 1
-                continue
-
-            null_count = df[column].isnull().sum()
-
-            if null_count > 0:
-                print(f"{sheet_name} - {column} - FAIL ({null_count} null values)")
-                status = "F"
-                failed_count += null_count
-            else:
-                print(f"{sheet_name} - {column} - PASS")
-
-                print("Appending one row...")
-
-        results.append({
-            "Sheet Name": sheet_name,
-            "Field": field_name,
-            "Test Type": "Data Quality Validation",
-            "Test Name": "Null Check",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
-        })
-
-    return results
-
-def validate_formula_check(config, excel_file):
-
-    results = []
-
-    formula_rules = config["formulavalidation"]
-
-    print("\n========== FORMULA VALIDATION ==========\n")
-
-    try:
-        df = pd.read_excel(excel_file, sheet_name="KPI")
-
-    except Exception:
-
-        print("KPI : Sheet Not Found")
-
-        return [{
-           "Sheet Name": "KPI",
-           "Field": "Sheet",
-           "Test Type": "Data Quality Validation",
-           "Test Name": "Formula Validation",
-           "Status (P/F)": "F",
-           "Failed Count": 1
-        }]
-    
-    df.columns = (
-        df.columns.str.strip()
-        .str.replace(" ", "_")
-        .str.replace("/", "_")
+from utils.helper import load_json
+from utils.excel_reader import load_excel
+from utils.report_generator import generate_report
+
+from validations.validations import (
+    validate_sheet_list,
+    validate_sheet_columns,
+    validate_duplicate_check,
+    validate_null_check,
+    validate_formula_check,
+    validate_numeric_precision,
+    validate_business_rule,
+    validate_reconciliation,
+    validate_cross_sheet,
+    validate_trend,
+)
+
+
+# --------------------------------------------------------------------------
+# Constants
+# --------------------------------------------------------------------------
+
+# File extensions this framework knows how to validate.
+SUPPORTED_EXTENSIONS = (".xlsx", ".xls", ".csv")
+
+# Default location for the report if the user does not pass --output.
+DEFAULT_OUTPUT_PATH = os.path.join("output", "Validation_Report.xlsx")
+
+
+# --------------------------------------------------------------------------
+# Argument Parsing
+# --------------------------------------------------------------------------
+
+def parse_arguments():
+    """
+    Define and parse the command-line arguments for the framework.
+
+    --config  : Path to the JSON configuration file (required).
+    --input   : Path to a single input file (.xlsx/.xls/.csv) OR a
+                folder containing multiple such files (required).
+    --output  : Path where the report should be written. Optional -
+                defaults to output/Validation_Report.xlsx.
+
+    Returns
+    -------
+    argparse.Namespace
+        The parsed --config, --input, and --output values.
+    """
+    parser = argparse.ArgumentParser(
+        description="KPI Validation Automation Framework - validates "
+                     "Excel/CSV data against a JSON rule set and "
+                     "produces a Validation_Report.xlsx"
     )
 
-    for rule in formula_rules:
-
-        formula_name = rule["name"]
-        formula = rule["formula"]
-        validation_type = rule["validationtype"].lower()
-        aggregate = rule.get("aggregate", False)
-
-        try:
-
-            if validation_type == "threshold":
-
-                threshold = rule["threshold"]
-                operator = rule["operator"]
-
-                if aggregate:
-
-                    group_columns = [
-                        col.strip().replace(" ", "_")
-                        for col in rule["groupbycolumns"]
-                    ]
-
-                    agg_dict = {}
-
-                    for col in rule.get("sourcecolumns", []):
-                        agg_dict[col.strip().replace(" ", "_")] = "sum"
-
-                    grouped_df = (
-                        df.groupby(
-                            group_columns,
-                            as_index=False
-                        )
-                        .agg(agg_dict)
-                    )
-
-                    calculated = grouped_df.eval(formula)
-
-                else:
-
-                    grouped_df = df.copy()
-
-                    calculated = grouped_df.eval(formula)
-
-                if operator == "<=":
-                    failed_mask = calculated > threshold
-
-                elif operator == "<":
-                    failed_mask = calculated >= threshold
-
-                elif operator == ">=":
-                    failed_mask = calculated < threshold
-
-                elif operator == ">":
-                    failed_mask = calculated <= threshold
-
-                elif operator == "==":
-                    failed_mask = calculated != threshold
-
-                elif operator == "!=":
-                    failed_mask = calculated == threshold
-
-                else:
-                    raise ValueError(
-                        f"Unsupported operator: {operator}"
-                    )
-
-                failed_count = int(failed_mask.sum())
-
-            elif validation_type == "comparison":
-
-                target_column = (
-                    rule["targetcolumn"]
-                    .strip()
-                    .replace(" ", "_")
-                )
-
-                source_columns = [
-                    col.strip().replace(" ", "_")
-                    for col in rule["sourcecolumns"]
-                ]
-
-                if aggregate:
-
-                    group_columns = [
-                        col.strip().replace(" ", "_")
-                        for col in rule["groupbycolumns"]
-                    ]
-
-                    agg_dict = {}
-
-                    for col in source_columns:
-                        agg_dict[col] = "sum"
-
-                    agg_dict[target_column] = "sum"
-
-                    grouped_df = (
-                        df.groupby(
-                            group_columns,
-                            as_index=False
-                        )
-                        .agg(agg_dict)
-                    )
-
-                else:
-
-                    grouped_df = df.copy()
-
-                calculated = grouped_df.eval(formula)
-
-                target_values = grouped_df[target_column]
-
-                failed_mask = (
-                    calculated.round(2)
-                    !=
-                    target_values.round(2)
-                )
-
-                failed_count = int(failed_mask.sum())
-
-                if failed_count > 0:
-
-                    print("\nFAILED ROWS:")
-
-                    display_columns = []
-
-                    if aggregate:
-                        display_columns.extend(group_columns)
-
-                    display_columns.extend(source_columns)
-                    display_columns.append(target_column)
-
-                    print(
-                        grouped_df.loc[
-                            failed_mask,
-                            display_columns
-                        ]
-                    )
-
-            else:
-
-                raise ValueError(
-                    f"Unsupported validation type: {validation_type}"
-                )
-
-            if failed_count == 0:
-
-                status = "P"
-                print(f"{formula_name} - PASS")
-
-            else:
-
-                status = "F"
-                print(f"{formula_name} - FAIL ({failed_count} rows)")
-
-        except Exception as e:
-
-            status = "F"
-            failed_count = 1
-
-            print(f"{formula_name} - FAIL ({str(e)})")
-
-        results.append({
-            "Sheet Name": "KPI",
-            "Field": formula_name,
-            "Test Type": "Data Quality Validation",
-            "Test Name": "Formula Validation",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
-        })
-
-    return results
-
-def validate_numeric_precision(config, excel_file):
-
-    results = []
-
-    precision_validation = config["dataqualityvalidation"]["numericprecision"]
-
-    print("\n========== NUMERIC PRECISION VALIDATION ==========\n")
-
-    for rule in precision_validation:
-
-        sheet_name = rule["sheetname"]
-        precision = rule["precision"]
-
-        try:
-            df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Numeric Precision",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        numeric_columns = df.select_dtypes(include="number").columns
-
-        if len(numeric_columns) == 0:
-
-            print(f"{sheet_name} : No Numeric Columns Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Numeric Columns",
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Numeric Precision",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        for column in numeric_columns:
-
-            failed_count = 0
-
-            for value in df[column].dropna():
-
-                value_str = str(value)
-
-                if "." in value_str:
-
-                    decimal_places = len(value_str.split(".")[1])
-
-                    if decimal_places > precision:
-                        failed_count += 1
-
-            if failed_count == 0:
-                status = "P"
-                print(f"{sheet_name} - {column} - PASS")
-            else:
-                status = "F"
-                print(f"{sheet_name} - {column} - FAIL ({failed_count} rows)")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": column,
-                "Test Type": "Data Quality Validation",
-                "Test Name": "Numeric Precision",
-                "Status (P/F)": status,
-                "Failed Count": failed_count
-            })
-
-    return results
-
-def validate_business_rule(config, excel_file):
-
-    results = []
-
-    business_rules = config["businessrulevalidation"]
-
-    print("\n========== BUSINESS RULE VALIDATION ==========\n")
-
-    for rule in business_rules:
-
-        rule_name = rule["name"]
-        sheet_name = rule["sheetname"]
-
-        try:
-            df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Business Rule Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        print("\nRule :", rule_name)
-        print("Sheet:", sheet_name)
-        print("Columns:")
-        print(df.columns.tolist())
-
-        required_columns = []
-
-        if "leftcolumn" in rule:
-
-            required_columns.append(rule["leftcolumn"])
-
-        if "rightcolumn" in rule:
-
-            required_columns.append(rule["rightcolumn"])
-
-        if "column" in rule:
-
-            required_columns.append(rule["column"])
-
-        if "referencecolumn" in rule:
-
-            required_columns.append(rule["referencecolumn"])
-
-        if "distinctcolumn" in rule:
-
-            required_columns.append(rule["distinctcolumn"])
-
-        if "lookupkeyleft" in rule:
-
-            required_columns.append(rule["lookupkeyleft"])
-
-        missing_columns = [
-            col for col in required_columns
-            if col not in df.columns
-        ]
-
-        if missing_columns:
-
-            print(f"{sheet_name} : Missing Column(s) - {', '.join(missing_columns)}")
-
-            results.append({
-               "Sheet Name": sheet_name,
-               "Field": ", ".join(missing_columns),
-               "Test Type": "Data Validation",
-               "Test Name": "Business Rule Validation",
-               "Status (P/F)": "F",
-               "Failed Count": len(missing_columns)
-            })
-
-            continue
-
-        if rule_name == "Latest Transaction Date should be less than Latest Loaded Date":
-
-            left_column = rule["leftcolumn"]
-            right_column = rule["rightcolumn"]
-            distinct_column = rule["distinctcolumn"]
-
-            failed_rows = []
-
-            for _, row in df.iterrows():
-
-                left_value = row[left_column]
-                right_value = row[right_column]
-
-                left_text = str(left_value).strip().lower()
-                right_text = str(right_value).strip().lower()
-
-                if (
-                    left_text == "not applicable"
-                    and
-                    right_text == "not applicable"
-                ):
-                    failed_rows.append({
-                        distinct_column:
-                row[distinct_column],
-                        left_column: left_value,
-                        right_column: right_value
-                    })
-                    continue
-
-                if (
-                    (left_text == "not applicable" and right_text != "not applicable")
-                    or
-                    (right_text == "not applicable" and left_text != "not applicable")
-                ):
-                    failed_rows.append({
-                        distinct_column: row[distinct_column],
-                        left_column: left_value,
-                        right_column: right_value
-                    })
-                    continue
-
-                left_date = pd.to_datetime(left_value, errors="coerce")
-                right_date = pd.to_datetime(right_value, errors="coerce")
-
-                if pd.isna(left_date) or pd.isna(right_date):
-                    failed_rows.append({
-                        distinct_column: row[distinct_column],
-                        left_column: left_value,
-                        right_column: right_value
-                    })
-                    continue
-
-                if left_date >= right_date:
-                    failed_rows.append({
-                        distinct_column: row[distinct_column],
-                        left_column: left_value,
-                        right_column: right_value
-                    })
-
-            failed_df = pd.DataFrame(
-                failed_rows,
-                columns=[
-                    distinct_column,
-                    left_column,
-                    right_column
-                ]
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the JSON configuration file "
+             "(e.g. config/kpi_automation_phase1.json)"
+    )
+
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to a single input file (.xlsx, .xls, .csv) OR a "
+             "folder containing multiple such files "
+             "(e.g. input/KPI.xlsx or input/)"
+    )
+
+    parser.add_argument(
+        "--output",
+        required=False,
+        default=DEFAULT_OUTPUT_PATH,
+        help=f"Path for the generated report. "
+             f"Defaults to '{DEFAULT_OUTPUT_PATH}'"
+    )
+
+    # argparse itself prints a clean usage message and exits(2) if a
+    # required argument is missing, so no extra handling is needed here.
+    return parser.parse_args()
+
+
+# --------------------------------------------------------------------------
+# Input Validation / Discovery Helpers
+# --------------------------------------------------------------------------
+
+def validate_config_path(config_path):
+    """
+    Confirm the config path exists and points to a real file.
+    Raises FileNotFoundError / ValueError with a clear message if not.
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found: '{config_path}'")
+
+    if not os.path.isfile(config_path):
+        raise ValueError(f"Config path is not a file: '{config_path}'")
+
+
+def validate_input_path(input_path):
+    """
+    Confirm the input path exists (as either a file or a folder).
+    Raises FileNotFoundError if the path does not exist at all.
+    """
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Input path not found: '{input_path}'")
+
+
+def collect_input_files(input_path):
+    """
+    Given an input path that is either a single file or a folder,
+    return a list of every supported file that needs to be validated.
+
+    - If input_path is a file -> returns [input_path], provided its
+      extension is supported.
+    - If input_path is a folder -> returns every supported file found
+      directly inside that folder (non-recursive), sorted alphabetically.
+
+    Raises
+    ------
+    ValueError
+        If a single file has an unsupported extension, or a folder
+        contains no supported files at all.
+    """
+    if os.path.isfile(input_path):
+        ext = os.path.splitext(input_path)[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            raise ValueError(
+                f"Unsupported file type '{ext}' for '{input_path}'. "
+                f"Supported types are: {', '.join(SUPPORTED_EXTENSIONS)}"
             )
+        return [input_path]
 
-            print("\nFAILED ROWS:")
-            print(failed_df)
-
-            failed_count = len(failed_df)
-
-            if failed_count == 0:
-                status = "P"
-                print(f"{rule_name} - PASS")
-            else:
-                status = "F"
-                print(f"{rule_name} - FAIL ({failed_count} Practice(s))")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": rule_name,
-                "Test Type": "Data Validation",
-                "Test Name": "Business Rule Validation",
-                "Status (P/F)": status,
-                "Failed Count": failed_count
-            })
-
-        elif rule_name == "Latest Transaction Date older than 3 months should display No LatestTransactionDate or NULL":
-
-            column_name = rule["column"]
-            reference_column = rule["referencecolumn"]
-            months = rule["months"]
-
-            original_values = (
-                df[column_name]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-            )
-
-            df[column_name] = pd.to_datetime(
-                df[column_name],
-                errors="coerce"
-            )
-
-            df[reference_column] = pd.to_datetime(
-                df[reference_column],
-                errors="coerce"
-            )
-
-            threshold_date = (
-                df[reference_column]
-                - pd.DateOffset(months=months)
-            )
-
-            comparison = (
-                (df[column_name] < threshold_date)
-                &
-                (
-                    ~original_values.isin([
-                        "null",
-                        "not applicable",
-                        "no latesttransactiondate",
-                        "no latest transaction date",
-                        "no latest transaction date available"
-                    ])
-                )
-            )
-
-            failed_rows = df.loc[comparison,[column_name, reference_column]]
-
-            print("\nFAILED ROWS:")
-            print(failed_rows)
-
-            failed_count = len(failed_rows)
-
-            if failed_count == 0:
-                status = "P"
-                print(f"{rule_name} - PASS")
-            else:
-                status = "F"
-                print(f"{rule_name} - FAIL ({failed_count} rows)")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": rule_name,
-                "Test Type": "Data Validation",
-                "Test Name": "Business Rule Validation",
-                "Status (P/F)": status,
-                "Failed Count": failed_count
-            })
-        
-        elif rule_name == "Practice Status of KPI sheet should match with Problem Reason of Practice Detail sheet":
-
-            left_column = rule["leftcolumn"]
-            lookup_sheet = rule["lookupsheet"]
-            lookup_key_left = rule["lookupkeyleft"]
-            lookup_key_right = rule["lookupkeyright"]
-            right_column = rule["rightcolumn"]
-
-            try:
-                lookup_df = pd.read_excel(excel_file, sheet_name=lookup_sheet)
-
-            except Exception:
-
-                print(f"{lookup_sheet} : Lookup Sheet Not Found")
-
-                results.append({
-                    "Sheet Name": lookup_sheet,
-                    "Field": "Lookup Sheet",
-                    "Test Type": "Data Validation",
-                    "Test Name": "Business Rule Validation",
-                    "Status (P/F)": "F",
-                    "Failed Count": 1
-                })
-
+    if os.path.isdir(input_path):
+        found_files = []
+        for filename in sorted(os.listdir(input_path)):
+            # Skip Excel's temporary lock files (e.g. "~$KPI.xlsx")
+            if filename.startswith("~$"):
                 continue
 
-            merged_df = df.merge(lookup_df,left_on=lookup_key_left,right_on=lookup_key_right,how="left")
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in SUPPORTED_EXTENSIONS:
+                found_files.append(os.path.join(input_path, filename))
 
-            comparison = (
-            merged_df[left_column].astype(str).str.strip().str.lower()
-            !=
-            merged_df[right_column].astype(str).str.strip().str.lower())
+        if not found_files:
+            raise ValueError(
+                f"No supported files ({', '.join(SUPPORTED_EXTENSIONS)}) "
+                f"found inside folder: '{input_path}'"
+            )
+        return found_files
 
-            failed_rows = merged_df.loc[
-            comparison,
-            [
-            lookup_key_left,
-            left_column,
-            right_column
-            ]]
+    # Path exists but is neither a regular file nor a directory
+    # (e.g. a broken symlink or a special device file).
+    raise ValueError(f"Invalid input path: '{input_path}'")
 
-            failed_rows = failed_rows.drop_duplicates(subset=[lookup_key_left])
 
-            print("\nFAILED ROWS:")
-            print(failed_rows)
+def prepare_excel_path(file_path):
+    """
+    The existing validation functions (in validations.py) always read
+    data using pandas' Excel reader (pd.read_excel / pd.ExcelFile), so
+    they expect an .xlsx/.xls file on disk.
 
-            failed_count = len(failed_rows)
+    If the incoming file is already Excel, this simply returns it
+    unchanged. If it is a .csv file, it is converted into a temporary
+    single-sheet .xlsx file so that it can flow through the exact same
+    validation functions without changing a single line of their code.
 
-            if failed_count == 0:
-                status = "P"
-                print(f"{rule_name} - PASS")
-            else:
-                status = "F"
-                print(f"{rule_name} - FAIL ({failed_count} rows)")
+    Note: a CSV only contains one flat table, so multi-sheet checks
+    (sheet existence, cross-sheet checks, etc.) will naturally report
+    failures for missing sheets - this is expected, not a bug.
 
-            results.append({
-            "Sheet Name": sheet_name,
-            "Field": rule_name,
-            "Test Type": "Data Validation",
-            "Test Name": "Business Rule Validation",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
-            })
+    Parameters
+    ----------
+    file_path : str
+        Path to the original input file.
 
-    return results
+    Returns
+    -------
+    tuple(str, bool)
+        (path_to_use, is_temporary) - is_temporary is True when a
+        temp .xlsx file was created and should be deleted afterwards.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
 
-def validate_reconciliation(config, excel_file):
+    if ext in (".xlsx", ".xls"):
+        return file_path, False
 
-    results = []
+    if ext == ".csv":
+        try:
+            df = pd.read_csv(file_path)
+        except Exception as error:
+            raise ValueError(
+                f"Could not read CSV file '{file_path}': {error}"
+            )
 
-    reconciliation_rules = config["reconciliationvalidation"]
-
-    print("\n========== RECONCILIATION VALIDATION ==========\n")
-
-    for rule in reconciliation_rules:
-
-        rule_name = rule["name"]
-        source_sheet = rule["sourcesheet"]
-        target_sheet = rule["targetsheet"]
-        match_columns = rule["matchcolumns"]
-        source_column = rule["sourcecolumn"]
-        target_column = rule["targetcolumn"]
-        distinct_column = rule["distinctcolumn"]
+        # Build a temp .xlsx path next to the output folder so it's
+        # easy to find/clean up, using the original filename as the
+        # single sheet name.
+        os.makedirs("output", exist_ok=True)
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        temp_path = os.path.join("output", f"_temp_{base_name}.xlsx")
 
         try:
-            source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
-
-        except Exception:
-
-            print(f"{source_sheet} : Source Sheet Not Found")
-
-            results.append({
-                "Sheet Name": source_sheet,
-                "Field": "Source Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Reconciliation Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        try:
-            target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
-
-        except Exception:
-
-            print(f"{target_sheet} : Target Sheet Not Found")
-
-            results.append({
-                "Sheet Name": target_sheet,
-                "Field": "Target Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Reconciliation Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        source_df.columns = [
-            str(col).strip().replace(" ", "_")
-            for col in source_df.columns
-        ]
-
-        target_df.columns = [
-            str(col).strip().replace(" ", "_")
-            for col in target_df.columns
-        ]
-
-        match_columns = [
-            col.strip().replace(" ", "_")
-            for col in match_columns
-        ]
-
-        source_column = source_column.strip().replace(" ", "_")
-        target_column = target_column.strip().replace(" ", "_")
-        distinct_column = distinct_column.strip().replace(" ", "_")
-
-        missing_match_columns = [
-            col for col in match_columns
-            if col not in source_df.columns or col not in target_df.columns
-        ]
-
-        if missing_match_columns:
-
-            print(
-                f"Missing Match Column(s): {', '.join(missing_match_columns)}"
+            df.to_excel(temp_path, index=False, sheet_name="Sheet1")
+        except Exception as error:
+            raise ValueError(
+                f"Could not convert CSV to Excel for validation: {error}"
             )
 
-            results.append({
-                "Sheet Name": source_sheet,
-                "Field": ", ".join(missing_match_columns),
-                "Test Type": "Data Validation",
-                "Test Name": "Reconciliation Validation",
-                "Status (P/F)": "F",
-                "Failed Count": len(missing_match_columns)
-            })
-
-            continue
-
-        if source_column not in source_df.columns:
-
-            print(f"{source_sheet} : Missing Source Column - {source_column}")
-
-            results.append({
-                "Sheet Name": source_sheet,
-                "Field": source_column,
-                "Test Type": "Data Validation",
-                "Test Name": "Reconciliation Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        if target_column not in target_df.columns:
-
-            print(f"{target_sheet} : Missing Target Column - {target_column}")
-
-            results.append({
-                "Sheet Name": target_sheet,
-                "Field": target_column,
-                "Test Type": "Data Validation",
-                "Test Name": "Reconciliation Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
- 
-            continue
-
-        source_df[source_column] = pd.to_numeric(
-            source_df[source_column],
-            errors="coerce"
-        ).fillna(0)
-
-        target_df[target_column] = pd.to_numeric(
-            target_df[target_column],
-            errors="coerce"
-        ).fillna(0)
-
-        source_df = (
-            source_df
-            .groupby(match_columns, as_index=False)
-            .agg({source_column: "sum"})
-        )
-
-        target_df = (
-            target_df
-            .groupby(match_columns, as_index=False)
-            .agg({target_column: "sum"})
-        )
-
-        merged_df = pd.merge(
-            source_df,
-            target_df,
-            on=match_columns,
-            how="outer"
-        ).fillna(0)
-
-        print(f"\n{rule_name}")
-        print(f"Matched Rows : {len(merged_df)}")
-
-        print(f"\nComparing {source_column} with {target_column}")
-
-        comparison = (merged_df[source_column] != merged_df[target_column])
-
-        failed_rows = merged_df.loc[comparison].copy()
-
-        if distinct_column in failed_rows.columns:
-            failed_rows = failed_rows.drop_duplicates(
-                subset=[distinct_column]
-            )
-
-        display_columns = list(dict.fromkeys(
-            match_columns +
-            [source_column, target_column]
-        ))
-
-        failed_rows = failed_rows[display_columns]
-
-        failed_count = len(failed_rows)
-
-        if failed_count == 0:
-            status = "P"
-            print("PASS")
-        else:
-            status = "F"
-            print(f"FAIL ({failed_count} rows)")
-            print(failed_rows)
-
-        results.append({
-            "Sheet Name": source_sheet,
-            "Field": rule_name,
-            "Test Type": "Data Validation",
-            "Test Name": "Reconciliation Validation",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
-        })
-
-    return results
-
-def validate_cross_sheet(config, excel_file):
-    results = []
-
-    rules = config.get("crosssheetvalidation", [])
-
-    print("\n========== Cross Sheet Validation ==========")
-
-    for rule in rules:
-        rule_name = rule.get("name")
-        source_sheet = rule.get("sourcesheet")
-        target_sheet = rule.get("targetsheet")
-        match_column = rule.get("matchcolumn")
-        validation_type = rule.get("validationtype")
-
-        try:
-            source_df = pd.read_excel(excel_file, sheet_name=source_sheet)
-
-        except Exception:
-
-            print(f"{source_sheet} : Source Sheet Not Found")
-
-            results.append({
-                "Sheet Name": source_sheet,
-                "Field": "Source Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Cross Sheet Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        try:
-            target_df = pd.read_excel(excel_file, sheet_name=target_sheet)
-
-        except Exception:
-
-            print(f"{target_sheet} : Target Sheet Not Found")
-
-            results.append({
-                "Sheet Name": target_sheet,
-                "Field": "Target Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Cross Sheet Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        source_df.columns = source_df.columns.str.strip().str.lower()
-        target_df.columns = target_df.columns.str.strip().str.lower()
-
-        match_col = match_column.strip().lower()
-
-        if match_col not in source_df.columns:
-
-            print(f"{source_sheet} : Missing Match Column - {match_col}")
-
-            results.append({
-                "Sheet Name": source_sheet,
-                "Field": match_col,
-                "Test Type": "Data Validation",
-                "Test Name": "Cross Sheet Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        if match_col not in target_df.columns:
-
-            print(f"{target_sheet} : Missing Match Column - {match_col}")
-
-            results.append({
-                "Sheet Name": target_sheet,
-                "Field": match_col,
-                "Test Type": "Data Validation",
-                "Test Name": "Cross Sheet Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        if validation_type == "valuecomparison":
-
-            source_column = rule.get("sourcecolumn").strip().lower()
-            target_column = rule.get("targetcolumn").strip().lower()
-
-            if source_column not in source_df.columns:
-
-                print(f"{source_sheet} : Missing Column - {source_column}")
-
-                results.append({
-                    "Sheet Name": source_sheet,
-                    "Field": source_column,
-                    "Test Type": "Data Validation",
-                    "Test Name": "Cross Sheet Validation",
-                    "Status (P/F)": "F",
-                    "Failed Count": 1
-                })
-
-                continue
-
-            if target_column not in target_df.columns:
-
-                print(f"{target_sheet} : Missing Column - {target_column}")
-
-                results.append({
-                    "Sheet Name": target_sheet,
-                    "Field": target_column,
-                    "Test Type": "Data Validation",
-                    "Test Name": "Cross Sheet Validation",
-                    "Status (P/F)": "F",
-                    "Failed Count": 1
-                })
-
-                continue
-
-            merged_df = pd.merge(
-                source_df[[match_col, source_column]],
-                target_df[[match_col, target_column]],
-                on=match_col,
-                how="outer"
-            )
-
-            comparison = (
-                merged_df[source_column]
-                .fillna("")
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                !=
-                merged_df[target_column]
-                .fillna("")
-                .astype(str)
-                .str.strip()
-                .str.lower()
-            )
-
-            missing_records = (
-                merged_df[source_column].isna()
-                |
-                merged_df[target_column].isna()
-            )
-
-            failed_count = (comparison | missing_records).sum()
-
-        elif validation_type == "existencecheck":
-
-            source_keys = set(
-                source_df[match_col]
-                .dropna()
-                .astype(str)
-                .str.strip()
-            )
-
-            target_keys = set(
-                target_df[match_col]
-                .dropna()
-                .astype(str)
-                .str.strip()
-            )
-
-            missing_in_target = source_keys - target_keys
-            missing_in_source = target_keys - source_keys
-
-            missing_keys = missing_in_target.union(missing_in_source)
-
-            failed_count = len(missing_keys)
-
-            if failed_count > 0:
-                print("\nMissing Practice Codes:")
-                print(missing_keys)
-
-        else:
-            continue
-
-        status = "P" if failed_count == 0 else "F"
-
-        print(f"{rule_name}: {status} ({failed_count} failures)")
-
-        results.append({
-            "Sheet Name": source_sheet,
-            "Field": rule_name,
-            "Test Type": "Data Validation",
-            "Test Name": "Cross Sheet Validation",
-            "Status (P/F)": status,
-            "Failed Count": failed_count
-        })
-
-    return results
-
-def validate_trend(config, excel_file):
-
-    print("\n====================================")
-    print("Trend Validation")
-    print("====================================")
-
-    results = []
-
-    rules = config.get("trendvalidation", [])
-
-    for rule in rules:
-
-        sheet_name = rule["sheet"]
-        metric_name = rule["name"]
-        metric = rule["metric"]
-        previous_metric = rule["previousmetric"]
-
-        operator = rule["operator"]
-        threshold = rule["threshold"]
-
-        aggregate = rule.get("aggregate", False)
-        groupby_columns = rule.get("groupbycolumns", [])
-
-        distinct_column = rule.get("distinctcolumn", "PracticeCode")
-
-        try:
-            df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        except Exception:
-
-            print(f"{sheet_name} : Sheet Not Found")
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": "Sheet",
-                "Test Type": "Data Validation",
-                "Test Name": "Trend Validation",
-                "Status (P/F)": "F",
-                "Failed Count": 1
-            })
-
-            continue
-
-        df.columns = (
-            df.columns.str.strip()
-            .str.replace(" ", "_")
-            .str.replace("/", "_")
-        )
-
-        required_columns = [metric]
-
-        if aggregate:
-
-            required_columns.extend(groupby_columns)
-
-        else:
-
-            required_columns.extend([
-                previous_metric,
-                "PracticeCode",
-                "FiscalYear",
-                "FiscalMonth"
-            ])
-
-        missing_columns = [
-            col for col in required_columns
-            if col not in df.columns
-        ]
-
-        if missing_columns:
-
-            print(
-                f"{sheet_name} : Missing Column(s) - "
-                f"{', '.join(missing_columns)}"
-            )
-
-            results.append({
-                "Sheet Name": sheet_name,
-                "Field": ", ".join(missing_columns),
-                "Test Type": "Data Validation",
-                "Test Name": "Trend Validation",
-                "Status (P/F)": "F",
-                "Failed Count": len(missing_columns)
-            })
-
-            continue
-
-        failed_count = 0
-
-        if aggregate:
-
-            df[metric] = pd.to_numeric(
-                df[metric],
-                errors="coerce"
-            ).fillna(0)
-
-            df = (
-                df.groupby(
-                    groupby_columns,
-                    as_index=False
-                ).agg({metric: "sum"})
-            )
-
-            df = df.sort_values(
-                by=groupby_columns
-            ).reset_index(drop=True)
-
-            previous_values = (
-                df.groupby(groupby_columns[0])[metric]
-                .shift(1)
-            )
-
-            for index, (current, previous) in enumerate(
-                zip(df[metric], previous_values)
-            ):
-
-                if pd.isna(previous):
-                    continue
-
-                if previous == 0:
-                    continue
-
-                deviation = ((current - previous) / previous) * 100
-
-                if operator == ">":
-                    condition = abs(deviation) > threshold
-
-                elif operator == "<":
-                    condition = abs(deviation) < threshold
-
-                elif operator == ">=":
-                    condition = abs(deviation) >= threshold
-
-                elif operator == "<=":
-                    condition = abs(deviation) <= threshold
-
-                elif operator == "==":
-                    condition = abs(deviation) == threshold
-
-                else:
-                    raise ValueError(
-                        f"Unsupported operator: {operator}"
-                    )
-                if condition:
-
-                    failed_count += 1
-
-                    print(
-                        f"{metric_name} -> "
-                        f"{df.loc[index, 'PracticeCode']}"
-                    )
-
-        else:
-
-            df = (
-                df.groupby(
-                    ["PracticeCode",
-            "FiscalYear", "FiscalMonth"],
-                    as_index=False
-                )
-                .agg({
-                    metric: "sum",
-                    previous_metric: "sum"
-                })
-            )
-
-            current_values = pd.to_numeric(
-                df[metric],
-                errors="coerce"
-            )
-
-            previous_values = pd.to_numeric(
-                df[previous_metric],
-                errors="coerce"
-            )
-
-            for index, (current, previous) in enumerate(
-                zip(current_values, previous_values)
-            ):
-
-                if pd.isna(current) or pd.isna(previous):
-                    continue
-
-                if previous == 0:
-                    continue
-
-                deviation = (
-                    ((current - previous) / previous) * 100
-                )
-
-                condition = abs(deviation) > threshold
-
-                status_text = "FAIL" if condition else "PASS"
-
-                print(
-                    df.loc[index, distinct_column],
-                    current,
-                    previous,
-                    deviation,
-                    threshold,
-                    status_text
-                )
-
-                if condition:
-
-                    failed_count += 1
-
-                    print(
-                        f"{metric_name} -> "
-                        f"{df.loc[index, distinct_column]}"
-                    )
-
-        status = "P" if failed_count == 0 else "F"
-
-        print(f"{metric_name}: {status} ({failed_count} failures)")
-
-        results.append({
-            "Sheet Name": sheet_name,
-            "Field": metric_name,
-            "Test Type": "Data Validation",
-            "Test Name": "Trend Validation",
-            "Status (P/F)": status,
-            "Failed Count": int(failed_count)
-        })
-
-    print("\nTrend Validation Completed.")
-
-    return results
-
-def main():
-
-    json_file = "Kpi_automation_phase1.json"
-    excel_file = "KPI_Sample (2).xlsx"
-
-    config = load_json(json_file)
+        return temp_path, True
+
+    # Should not happen because collect_input_files() already filtered
+    # extensions, but guarded here for safety.
+    raise ValueError(f"Unsupported file type '{ext}' for '{file_path}'")
+
+
+def build_output_path_for_file(output_arg, input_file_path, is_batch):
+    """
+    Decide the final report path for a given input file.
+
+    - Single-file mode: use the --output path exactly as given.
+    - Batch (folder) mode: suffix the --output filename with the
+      source file's name, so multiple reports don't overwrite
+      each other, e.g.:
+          output/Validation_Report.xlsx
+              -> output/Validation_Report_KPI_March.xlsx
+              -> output/Validation_Report_KPI_April.xlsx
+    """
+    if not is_batch:
+        return output_arg
+
+    output_dir = os.path.dirname(output_arg) or "."
+    base, ext = os.path.splitext(os.path.basename(output_arg))
+    input_stem = os.path.splitext(os.path.basename(input_file_path))[0]
+
+    return os.path.join(output_dir, f"{base}_{input_stem}{ext}")
+
+
+# --------------------------------------------------------------------------
+# Core Orchestration (unchanged pipeline, now reusable per-file)
+# --------------------------------------------------------------------------
+
+def run_validation_pipeline(config, excel_file, output_file):
+    """
+    Run the exact same orchestration steps as the original framework:
+
+        1. Load workbook.
+        2. Execute all validation functions.
+        3. Collect all results.
+        4. Generate the report.
+
+    Parameters
+    ----------
+    config : dict
+        Already-loaded JSON configuration.
+    excel_file : str
+        Path to the .xlsx file to validate (CSV inputs are converted
+        to a temporary .xlsx before reaching this function).
+    output_file : str
+        Path where the Validation_Report.xlsx should be written.
+    """
+    # ---- Step 2: Load input Excel ----
     workbook = load_excel(excel_file)
-
-    print("JSON Loaded Successfully")
     print("Excel Loaded Successfully")
 
+    # ---- Step 3: Execute all validation functions ----
     sheet_results = validate_sheet_list(config, workbook)
     column_results = validate_sheet_columns(config, excel_file)
     duplicate_results = validate_duplicate_check(config, excel_file)
@@ -1475,14 +307,153 @@ def main():
     cross_sheet_results = validate_cross_sheet(config, excel_file)
     trend_results = validate_trend(config, excel_file)
 
+    # ---- Step 4: Collect all results together ----
+    final_results = (
+        sheet_results
+        + column_results
+        + duplicate_results
+        + null_results
+        + formula_results
+        + numeric_precision_results
+        + business_rule_results
+        + reconciliation_results
+        + cross_sheet_results
+        + trend_results
+    )
 
-    final_results = sheet_results + column_results + duplicate_results + null_results + formula_results + numeric_precision_results + business_rule_results + reconciliation_results + cross_sheet_results + trend_results
+    # ---- Step 5: Generate the Validation Report ----
+    # Make sure the output folder exists before writing to it.
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
-    report = pd.DataFrame(final_results)
+    generate_report(final_results, output_file)
 
-    report.to_excel("Validation_Report.xlsx", index=False)
 
-    print("\nValidation_Report.xlsx created successfully.")
+def process_single_file(config, input_file, output_file):
+    """
+    Wraps run_validation_pipeline() with per-file error handling and
+    CSV-to-Excel conversion/cleanup, so that one bad file in a batch
+    doesn't crash the whole run.
+
+    Returns
+    -------
+    bool
+        True if this file was validated and a report was generated
+        successfully, False otherwise.
+    """
+    temp_path = None
+
+    try:
+        print(f"\n{'=' * 60}")
+        print(f"Processing: {input_file}")
+        print(f"{'=' * 60}")
+
+        # Convert CSV to a temporary Excel file if needed; Excel files
+        # pass through unchanged.
+        excel_path, is_temporary = prepare_excel_path(input_file)
+        if is_temporary:
+            temp_path = excel_path
+
+        run_validation_pipeline(config, excel_path, output_file)
+
+        print(f"Report generated: {output_file}")
+        return True
+
+    except FileNotFoundError as error:
+        print(f"[FAILED] File not found while processing '{input_file}': {error}")
+        return False
+
+    except ValueError as error:
+        print(f"[FAILED] Invalid file/path while processing '{input_file}': {error}")
+        return False
+
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as error:
+        print(f"[FAILED] Invalid/corrupt Excel or CSV content in '{input_file}': {error}")
+        return False
+
+    except Exception as error:
+        # Catch-all for anything unexpected, without crashing the batch.
+        print(f"[FAILED] Unexpected error while processing '{input_file}': {error}")
+        traceback.print_exc()
+        return False
+
+    finally:
+        # Clean up the temporary .xlsx file created from a CSV, if any.
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                # Non-fatal - leftover temp file isn't worth crashing over.
+                pass
+
+
+# --------------------------------------------------------------------------
+# Main Entry Point
+# --------------------------------------------------------------------------
+
+def main():
+    args = parse_arguments()
+
+    # ---- Step 0: Validate the paths supplied on the command line ----
+    try:
+        validate_config_path(args.config)
+        validate_input_path(args.input)
+    except (FileNotFoundError, ValueError) as error:
+        print(f"[ERROR] {error}")
+        sys.exit(1)
+
+    # ---- Step 1: Load JSON configuration (shared across all files) ----
+    try:
+        config = load_json(args.config)
+        print("JSON Loaded Successfully")
+    except json.JSONDecodeError as error:
+        print(f"[ERROR] Config file is not valid JSON: '{args.config}' -> {error}")
+        sys.exit(1)
+    except FileNotFoundError:
+        print(f"[ERROR] Config file not found: '{args.config}'")
+        sys.exit(1)
+    except Exception as error:
+        print(f"[ERROR] Unexpected error while loading config: {error}")
+        traceback.print_exc()
+        sys.exit(1)
+
+    # ---- Discover which file(s) need to be validated ----
+    try:
+        input_files = collect_input_files(args.input)
+    except ValueError as error:
+        print(f"[ERROR] {error}")
+        sys.exit(1)
+
+    is_batch = len(input_files) > 1
+    if is_batch:
+        print(f"Found {len(input_files)} supported file(s) in folder '{args.input}'")
+
+    # ---- Process every discovered file ----
+    success_count = 0
+    failure_count = 0
+
+    for input_file in input_files:
+        output_file = build_output_path_for_file(args.output, input_file, is_batch)
+        succeeded = process_single_file(config, input_file, output_file)
+
+        if succeeded:
+            success_count += 1
+        else:
+            failure_count += 1
+
+    # ---- Final summary ----
+    print(f"\n{'=' * 60}")
+    print("Run Summary")
+    print(f"{'=' * 60}")
+    print(f"Total files:  {len(input_files)}")
+    print(f"Succeeded:    {success_count}")
+    print(f"Failed:       {failure_count}")
+
+    # Exit with a non-zero code if everything failed, so this plays
+    # nicely with CI pipelines / task schedulers.
+    if success_count == 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

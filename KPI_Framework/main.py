@@ -117,29 +117,51 @@ def validate_input_path(input_path):
 
 
 def collect_input_files(input_path):
+    """
+    Accept either:
+    1. A single supported input file
+    2. A folder containing one or more supported input files
+
+    Folder discovery is recursive, so files inside subfolders are also
+    discovered.
+    """
+
     if os.path.isfile(input_path):
         ext = os.path.splitext(input_path)[1].lower()
+
         if ext not in SUPPORTED_EXTENSIONS:
             raise ValueError(
                 f"Unsupported file type '{ext}' for '{input_path}'. "
                 f"Supported types are: {', '.join(SUPPORTED_EXTENSIONS)}"
             )
+
         return [input_path]
 
     if os.path.isdir(input_path):
         found_files = []
-        for filename in sorted(os.listdir(input_path)):
-            if filename.startswith("~$"):
-                continue
-            ext = os.path.splitext(filename)[1].lower()
-            if ext in SUPPORTED_EXTENSIONS:
-                found_files.append(os.path.join(input_path, filename))
+
+        for root, _, filenames in os.walk(input_path):
+            for filename in sorted(filenames):
+
+                # Ignore temporary Excel lock files
+                if filename.startswith("~$"):
+                    continue
+
+                ext = os.path.splitext(filename)[1].lower()
+
+                if ext in SUPPORTED_EXTENSIONS:
+                    found_files.append(
+                        os.path.join(root, filename)
+                    )
+
+        found_files.sort()
 
         if not found_files:
             raise ValueError(
                 f"No supported files ({', '.join(SUPPORTED_EXTENSIONS)}) "
                 f"found inside folder: '{input_path}'"
             )
+
         return found_files
 
     raise ValueError(f"Invalid input path: '{input_path}'")

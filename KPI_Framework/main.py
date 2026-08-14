@@ -27,8 +27,14 @@ import sys
 import json
 import argparse
 import traceback
+import gc
+import time
+import tempfile
+import shutil
 
 import pandas as pd
+import openpyxl
+from openpyxl import Workbook
 
 from utils.helper import load_json
 from utils.excel_reader import load_excel
@@ -166,6 +172,143 @@ def collect_input_files(input_path):
 
     raise ValueError(f"Invalid input path: '{input_path}'")
 
+def combine_split_workbook(input_folder):
+    """
+    Combines multiple Excel files from a folder into one temporary
+    multi-sheet Excel workbook.
+
+    Each Excel file represents one sheet:
+        Read Me.xlsx              -> Read Me
+        Data Pipeline Status.xlsx -> Data Pipeline Status
+        KPI.xlsx                   -> KPI
+        etc.
+
+    The original validation functions continue to receive a normal
+    multi-sheet Excel workbook.
+    """
+
+    if not os.path.isdir(input_folder):
+        raise ValueError(
+            f"Split workbook path must be a folder: '{input_folder}'"
+        )
+
+    excel_files = []
+
+    for filename in sorted(os.listdir(input_folder)):
+        if filename.startswith("~$"):
+            continue
+
+        ext = os.path.splitext(filename)[1].lower()
+
+        if ext in (".xlsx", ".xls"):
+            excel_files.append(
+                os.path.join(input_folder, filename)
+            )
+
+    if not excel_files:
+        raise ValueError(
+            f"No Excel files found in split workbook folder: '{input_folder}'"
+        )
+
+    # Create the temporary combined workbook in a real OS temp directory
+    # (never inside the output/ folder, so it can never be left behind
+    # there even if deletion is delayed or retried).
+    temp_dir = tempfile.mkdtemp(prefix="kpi_framework_")
+
+    folder_name = os.path.basename(os.path.normpath(input_folder))
+    temp_path = os.path.join(
+        temp_dir,
+        f"temp{folder_name}.xlsx"
+    )
+
+    workbook = Workbook()
+
+    # Remove default sheet
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
+
+    for file_path in excel_files:
+
+        file_name = os.path.splitext(
+            os.path.basename(file_path)
+        )[0]
+
+        # Read the first/only sheet from the individual workbook using
+        # openpyxl directly (not pandas). This preserves each cell's
+        # number_format (e.g. "#,##0.00") alongside its value, which
+        # pandas' read_excel() discards. Numeric Precision validation
+        # relies on the cell's display format to know how many decimals
+        # Excel actually shows - losing it here would make derived
+        # (full float-precision) columns look like precision failures
+        # even when the source workbook displays them correctly.
+        try:
+            source_workbook = openpyxl.load_workbook(file_path, data_only=True)
+            source_sheet = source_workbook.active
+        except Exception as error:
+            raise ValueError(
+                f"Could not read input file '{file_path}': {error}"
+            )
+
+        # Excel sheet names cannot exceed 31 characters
+        sheet_name = file_name[:31]
+
+        # Create sheet
+        ws = workbook.create_sheet(title=sheet_name)
+
+        # Copy every cell (header row and data rows alike), value and
+        # number_format together, so the temp workbook is a faithful
+        # copy of the source file rather than just its raw values.
+        for row_index, source_row in enumerate(source_sheet.iter_rows(), start=1):
+            for col_index, source_cell in enumerate(source_row, start=1):
+                dest_cell = ws.cell(
+                    row=row_index,
+                    column=col_index,
+                    value=source_cell.value
+                )
+                dest_cell.number_format = source_cell.number_format
+
+        source_workbook.close()
+
+    workbook.save(temp_path)
+
+    print(
+        f"Created temporary combined workbook: {temp_path}"
+    )
+
+    print("Sheets combined:")
+
+    for file_path in excel_files:
+        sheet_name = os.path.splitext(
+            os.path.basename(file_path)
+        )[0]
+
+        print(f"  - {sheet_name}")
+
+    return temp_path, temp_dir
+
+def is_split_workbook_folder(input_path):
+    """
+    Returns True when the input path is a folder containing
+    multiple Excel files representing individual sheets.
+    """
+
+    if not os.path.isdir(input_path):
+        return False
+
+    excel_files = []
+
+    for filename in os.listdir(input_path):
+
+        if filename.startswith("~$"):
+            continue
+
+        ext = os.path.splitext(filename)[1].lower()
+
+        if ext in (".xlsx", ".xls"):
+            excel_files.append(filename)
+
+    return len(excel_files) > 1
+
 
 def prepare_excel_path(file_path):
     """
@@ -272,54 +415,79 @@ def run_validation_pipeline(config, excel_file, output_file):
     validator does not abort the others - it is recorded as a single
     "Configuration Error" row and the rest of the pipeline continues.
     """
-    workbook = load_excel(excel_file)
-    print("Excel Loaded Successfully")
 
-    final_results = []
+    workbook = None
 
-    for config_path, func_name, test_name in VALIDATOR_STEPS:
-        func = VALIDATOR_FUNCTIONS[func_name]
-        try:
-            _get_config_section(config, config_path)  # existence check only
-            if func_name == "validate_sheet_list":
-                section_results = func(config, workbook)
-            else:
-                section_results = func(config, excel_file)
-            final_results.extend(section_results)
+    try:
+        workbook = load_excel(excel_file)
+        print("Excel Loaded Successfully")
 
-        except KeyError as missing_key:
-            print(f"[CONFIG ERROR] Missing configuration section '{config_path}' "
-                  f"({missing_key}) - skipping {test_name}.")
-            final_results.append({
-                "Sheet Name": "Configuration",
-                "Field": config_path,
-                "Test Type": "Configuration Validation",
-                "Test Name": test_name,
-                "Status (P/F)": "F",
-                "Failed Count": 1,
-            })
-        except Exception as error:
-            print(f"[VALIDATOR ERROR] {test_name} failed: {error}")
-            traceback.print_exc()
-            final_results.append({
-                "Sheet Name": "Configuration",
-                "Field": test_name,
-                "Test Type": "Configuration Validation",
-                "Test Name": test_name,
-                "Status (P/F)": "F",
-                "Failed Count": 1,
-            })
+        final_results = []
 
-    # Print all validation results to terminal
-    print_validation_results(final_results)
+        for config_path, func_name, test_name in VALIDATOR_STEPS:
+            func = VALIDATOR_FUNCTIONS[func_name]
 
-    output_dir = os.path.dirname(output_file)
+            try:
+                _get_config_section(config, config_path)
 
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
+                if func_name == "validate_sheet_list":
+                    section_results = func(config, workbook)
+                else:
+                    section_results = func(config, excel_file)
 
-    generate_report(final_results, output_file)
+                final_results.extend(section_results)
 
+            except KeyError as missing_key:
+                print(
+                    f"[CONFIG ERROR] Missing configuration section "
+                    f"'{config_path}' ({missing_key}) - skipping {test_name}."
+                )
+
+                final_results.append({
+                    "Sheet Name": "Configuration",
+                    "Field": config_path,
+                    "Test Type": "Configuration Validation",
+                    "Test Name": test_name,
+                    "Status (P/F)": "F",
+                    "Failed Count": 1,
+                })
+
+            except Exception as error:
+                print(
+                    f"[VALIDATOR ERROR] {test_name} failed: {error}"
+                )
+                traceback.print_exc()
+
+                final_results.append({
+                    "Sheet Name": "Configuration",
+                    "Field": test_name,
+                    "Test Type": "Configuration Validation",
+                    "Test Name": test_name,
+                    "Status (P/F)": "F",
+                    "Failed Count": 1,
+                })
+
+        # Print all validation results to terminal
+        print_validation_results(final_results)
+
+        output_dir = os.path.dirname(output_file)
+
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        generate_report(final_results, output_file)
+
+    finally:
+        # Close the pandas ExcelFile so Windows can release the file lock.
+        if workbook is not None:
+            try:
+                workbook.close()
+                print("Input workbook closed successfully")
+            except Exception as error:
+                print(
+                    f"[WARNING] Could not close input workbook: {error}"
+                )
+                
 def process_single_file(config, input_file, output_file):
     temp_path = None
 
@@ -394,27 +562,128 @@ def main():
         print(f"[ERROR] Config file '{args.config}' is empty or not a JSON object.")
         sys.exit(1)
 
-    try:
-        input_files = collect_input_files(args.input)
-    except ValueError as error:
-        print(f"[ERROR] {error}")
-        sys.exit(1)
+    # --------------------------------------------------------------
+    # Determine input mode
+    # --------------------------------------------------------------
 
-    is_batch = len(input_files) > 1
-    if is_batch:
-        print(f"Found {len(input_files)} supported file(s) in folder '{args.input}'")
+    is_split_workbook = is_split_workbook_folder(args.input)
+    combined_input = None
+    combined_temp_dir = None
+
+    if is_split_workbook:
+
+        print("\n" + "=" * 60)
+        print("SPLIT WORKBOOK INPUT DETECTED")
+        print("=" * 60)
+        print(f"Input folder: {args.input}")
+
+        try:
+            combined_input, combined_temp_dir = combine_split_workbook(args.input)
+        except Exception as error:
+            print(f"[ERROR] Could not combine input files: {error}")
+            traceback.print_exc()
+            sys.exit(1)
+
+        input_files = [combined_input]
+        is_batch = False
+
+    else:
+
+        try:
+            input_files = collect_input_files(args.input)
+        except ValueError as error:
+            print(f"[ERROR] {error}")
+            sys.exit(1)
+
+        is_batch = len(input_files) > 1
+
+        if is_batch:
+            print(
+                f"Found {len(input_files)} supported file(s) "
+                f"in folder '{args.input}'"
+            )
+
+    # --------------------------------------------------------------
+    # Process input files
+    # --------------------------------------------------------------
 
     success_count = 0
     failure_count = 0
 
-    for input_file in input_files:
-        output_file = build_output_path_for_file(args.output, input_file, is_batch)
-        succeeded = process_single_file(config, input_file, output_file)
+    try:
+        for input_file in input_files:
 
-        if succeeded:
-            success_count += 1
-        else:
-            failure_count += 1
+            output_file = build_output_path_for_file(
+                args.output,
+                input_file,
+                is_batch
+            )
+
+            succeeded = process_single_file(
+                config,
+                input_file,
+                output_file
+            )
+
+            if succeeded:
+                success_count += 1
+            else:
+                failure_count += 1
+
+    finally:
+        # --------------------------------------------------------------
+        # Remove the temporary combined workbook - this runs even if an
+        # unexpected error occurs above, so the temp directory is never
+        # left behind. It was created in a real OS temp directory (not
+        # inside output/), so even if removal is briefly delayed, it
+        # can never show up alongside Validation_Report.xlsx.
+        # --------------------------------------------------------------
+
+        if is_split_workbook and combined_temp_dir:
+
+            # Force garbage collection before removing the file so any
+            # remaining workbook/file handles (pandas ExcelFile,
+            # openpyxl workbooks opened for cell-format inspection,
+            # etc.) are released on Windows.
+            gc.collect()
+
+            if os.path.exists(combined_temp_dir):
+                removed = False
+
+                # Windows can briefly keep the workbook locked after the
+                # ExcelFile is closed. Retry a few times before warning.
+                for attempt in range(5):
+                    try:
+                        shutil.rmtree(combined_temp_dir)
+                        removed = True
+
+                        print(
+                            f"Temporary combined workbook removed: "
+                            f"{combined_input}"
+                        )
+                        break
+
+                    except PermissionError:
+                        if attempt < 4:
+                            gc.collect()
+                            time.sleep(1)
+
+                    except OSError as error:
+                        print(
+                            f"[WARNING] Could not remove temporary workbook "
+                            f"directory: {error}"
+                        )
+                        break
+
+                if not removed and os.path.exists(combined_temp_dir):
+                    print(
+                        f"[WARNING] Temporary combined workbook is still in "
+                        f"use and could not be removed: {combined_temp_dir}"
+                    )
+
+    # --------------------------------------------------------------
+    # Run Summary
+    # --------------------------------------------------------------
 
     print(f"\n{'=' * 60}")
     print("Run Summary")

@@ -27,8 +27,13 @@ import sys
 import json
 import argparse
 import traceback
+import gc
+import time
+import tempfile
+import shutil
 
 import pandas as pd
+import openpyxl
 from openpyxl import Workbook
 
 from utils.helper import load_json
@@ -205,12 +210,14 @@ def combine_split_workbook(input_folder):
             f"No Excel files found in split workbook folder: '{input_folder}'"
         )
 
-    # Create temporary workbook
-    os.makedirs("output", exist_ok=True)
+    # Create the temporary combined workbook in a real OS temp directory
+    # (never inside the output/ folder, so it can never be left behind
+    # there even if deletion is delayed or retried).
+    temp_dir = tempfile.mkdtemp(prefix="kpi_framework_")
 
     folder_name = os.path.basename(os.path.normpath(input_folder))
     temp_path = os.path.join(
-        "output",
+        temp_dir,
         f"temp{folder_name}.xlsx"
     )
 
@@ -226,9 +233,17 @@ def combine_split_workbook(input_folder):
             os.path.basename(file_path)
         )[0]
 
-        # Read the first/only sheet from the individual workbook
+        # Read the first/only sheet from the individual workbook using
+        # openpyxl directly (not pandas). This preserves each cell's
+        # number_format (e.g. "#,##0.00") alongside its value, which
+        # pandas' read_excel() discards. Numeric Precision validation
+        # relies on the cell's display format to know how many decimals
+        # Excel actually shows - losing it here would make derived
+        # (full float-precision) columns look like precision failures
+        # even when the source workbook displays them correctly.
         try:
-            df = pd.read_excel(file_path)
+            source_workbook = openpyxl.load_workbook(file_path, data_only=True)
+            source_sheet = source_workbook.active
         except Exception as error:
             raise ValueError(
                 f"Could not read input file '{file_path}': {error}"
@@ -240,25 +255,19 @@ def combine_split_workbook(input_folder):
         # Create sheet
         ws = workbook.create_sheet(title=sheet_name)
 
-        # Write column headers
-        for col_index, column_name in enumerate(df.columns, start=1):
-            ws.cell(
-                row=1,
-                column=col_index,
-                value=column_name
-            )
-
-        # Write data
-        for row_index, row in enumerate(
-            df.itertuples(index=False),
-            start=2
-        ):
-            for col_index, value in enumerate(row, start=1):
-                ws.cell(
+        # Copy every cell (header row and data rows alike), value and
+        # number_format together, so the temp workbook is a faithful
+        # copy of the source file rather than just its raw values.
+        for row_index, source_row in enumerate(source_sheet.iter_rows(), start=1):
+            for col_index, source_cell in enumerate(source_row, start=1):
+                dest_cell = ws.cell(
                     row=row_index,
                     column=col_index,
-                    value=value
+                    value=source_cell.value
                 )
+                dest_cell.number_format = source_cell.number_format
+
+        source_workbook.close()
 
     workbook.save(temp_path)
 
@@ -275,7 +284,7 @@ def combine_split_workbook(input_folder):
 
         print(f"  - {sheet_name}")
 
-    return temp_path
+    return temp_path, temp_dir
 
 def is_split_workbook_folder(input_path):
     """
@@ -559,6 +568,7 @@ def main():
 
     is_split_workbook = is_split_workbook_folder(args.input)
     combined_input = None
+    combined_temp_dir = None
 
     if is_split_workbook:
 
@@ -568,7 +578,7 @@ def main():
         print(f"Input folder: {args.input}")
 
         try:
-            combined_input = combine_split_workbook(args.input)
+            combined_input, combined_temp_dir = combine_split_workbook(args.input)
         except Exception as error:
             print(f"[ERROR] Could not combine input files: {error}")
             traceback.print_exc()
@@ -600,46 +610,76 @@ def main():
     success_count = 0
     failure_count = 0
 
-    for input_file in input_files:
+    try:
+        for input_file in input_files:
 
-        output_file = build_output_path_for_file(
-            args.output,
-            input_file,
-            is_batch
-        )
-
-        succeeded = process_single_file(
-            config,
-            input_file,
-            output_file
-        )
-
-        if succeeded:
-            success_count += 1
-        else:
-            failure_count += 1
-
-    # --------------------------------------------------------------
-    # Remove temporary combined workbook
-    # --------------------------------------------------------------
-
-    if is_split_workbook and combined_input:
-
-        try:
-            if os.path.exists(combined_input):
-                os.remove(combined_input)
-
-                print(
-                    f"Temporary combined workbook removed: "
-                    f"{combined_input}"
-                )
-
-        except OSError as error:
-
-            print(
-                f"[WARNING] Could not remove temporary workbook: "
-                f"{error}"
+            output_file = build_output_path_for_file(
+                args.output,
+                input_file,
+                is_batch
             )
+
+            succeeded = process_single_file(
+                config,
+                input_file,
+                output_file
+            )
+
+            if succeeded:
+                success_count += 1
+            else:
+                failure_count += 1
+
+    finally:
+        # --------------------------------------------------------------
+        # Remove the temporary combined workbook - this runs even if an
+        # unexpected error occurs above, so the temp directory is never
+        # left behind. It was created in a real OS temp directory (not
+        # inside output/), so even if removal is briefly delayed, it
+        # can never show up alongside Validation_Report.xlsx.
+        # --------------------------------------------------------------
+
+        if is_split_workbook and combined_temp_dir:
+
+            # Force garbage collection before removing the file so any
+            # remaining workbook/file handles (pandas ExcelFile,
+            # openpyxl workbooks opened for cell-format inspection,
+            # etc.) are released on Windows.
+            gc.collect()
+
+            if os.path.exists(combined_temp_dir):
+                removed = False
+
+                # Windows can briefly keep the workbook locked after the
+                # ExcelFile is closed. Retry a few times before warning.
+                for attempt in range(5):
+                    try:
+                        shutil.rmtree(combined_temp_dir)
+                        removed = True
+
+                        print(
+                            f"Temporary combined workbook removed: "
+                            f"{combined_input}"
+                        )
+                        break
+
+                    except PermissionError:
+                        if attempt < 4:
+                            gc.collect()
+                            time.sleep(1)
+
+                    except OSError as error:
+                        print(
+                            f"[WARNING] Could not remove temporary workbook "
+                            f"directory: {error}"
+                        )
+                        break
+
+                if not removed and os.path.exists(combined_temp_dir):
+                    print(
+                        f"[WARNING] Temporary combined workbook is still in "
+                        f"use and could not be removed: {combined_temp_dir}"
+                    )
 
     # --------------------------------------------------------------
     # Run Summary

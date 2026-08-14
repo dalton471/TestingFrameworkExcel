@@ -147,8 +147,6 @@ def validate_sheet_columns(config, excel_file):
         excel_columns = {_clean_column_name(c) for c in df.columns}
 
         for field in sheet_info["fields"]:
-            print("DEBUG FIELD:", sheet_name, field["name"])
-
             json_column = _clean_column_name(field["name"])
             status = "P" if json_column in excel_columns else "F"
 
@@ -321,7 +319,8 @@ def validate_formula_check(config, excel_file):
             print(f"{formula_name} - FAIL ({str(e)})")
 
         results.append({
-            "Sheet Name": "KPI",
+            "Sheet Name": ""
+            "",
             "Field": formula_name,
             "Test Type": "Data Quality Validation",
             "Test Name": "Formula Validation",
@@ -389,31 +388,42 @@ def _build_format_lookup(excel_file, sheet_name, columns):
     (e.g. CSV-derived xlsx without preserved styles, or old .xls)."""
     if openpyxl is None:
         return {}
+
+    wb = None
     try:
         wb = openpyxl.load_workbook(excel_file, data_only=True)
         if sheet_name not in wb.sheetnames:
             return {}
         ws = wb[sheet_name]
+
+        header_row = next(ws.iter_rows(min_row=1, max_row=1))
+        header_index = {}
+        for idx, cell in enumerate(header_row):
+            if cell.value is not None:
+                header_index[str(cell.value).strip()] = idx
+
+        wanted = {col: header_index[col] for col in columns if col in header_index}
+        if not wanted:
+            return {}
+
+        formats = {col: [] for col in wanted}
+        for row in ws.iter_rows(min_row=2):
+            for col, idx in wanted.items():
+                if idx < len(row):
+                    cell = row[idx]
+                    formats[col].append((cell.value, cell.number_format))
+        return formats
     except Exception:
         return {}
-
-    header_row = next(ws.iter_rows(min_row=1, max_row=1))
-    header_index = {}
-    for idx, cell in enumerate(header_row):
-        if cell.value is not None:
-            header_index[str(cell.value).strip()] = idx
-
-    wanted = {col: header_index[col] for col in columns if col in header_index}
-    if not wanted:
-        return {}
-
-    formats = {col: [] for col in wanted}
-    for row in ws.iter_rows(min_row=2):
-        for col, idx in wanted.items():
-            if idx < len(row):
-                cell = row[idx]
-                formats[col].append((cell.value, cell.number_format))
-    return formats
+    finally:
+        # Always release the file handle - on Windows a lingering
+        # openpyxl workbook handle can keep the underlying file (e.g.
+        # a temporary combined workbook) locked and undeletable.
+        if wb is not None:
+            try:
+                wb.close()
+            except Exception:
+                pass
 
 
 def validate_numeric_precision(config, excel_file):
@@ -732,7 +742,11 @@ def validate_reconciliation(config, excel_file):
         merged_df = pd.merge(source_agg, target_agg, on=match_columns, how="outer").fillna(0)
 
         diff = (merged_df[source_column] - merged_df[target_column]).abs()
-        failed_rows = merged_df.loc[diff > tolerance]
+        failed_rows = merged_df.loc[diff > tolerance].copy()
+
+        if distinct_column in failed_rows.columns:
+            failed_rows = failed_rows.drop_duplicates(subset=[distinct_column]
+            )
 
         failed_count = len(failed_rows)
         status = "P" if failed_count == 0 else "F"

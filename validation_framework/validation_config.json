@@ -1,0 +1,59 @@
+{
+
+  "workbook": {
+    "name": "Validation_Sample.xlsx"
+  },
+
+  "sheet_checks": {
+    "Read Me": { "required": true },
+    "Employee Details": { "required": true },
+    "Contact Details": { "required": true },
+    "Compensation": { "required": true },
+    "Manager Details": { "required": true }
+  },
+
+  "column_checks": {
+    "numeric_only": {},
+    "email": {},
+    "phone_number": {},
+    "amount": {
+      "min_value": 20000,
+      "max_value": 200000
+    },
+    "number": {
+      "min_value": 0,
+      "max_value": 100
+    },
+    "date": {
+      "format": "%Y-%m-%d"
+    },
+    "text_only": {}
+  },
+
+  "fields": {
+    "Employee Details": {
+      "Employee_ID": ["numeric_only"],
+      "Employee_Name": ["text_only"],
+      "Department": ["text_only"],
+      "Joining_Date": ["date"]
+    },
+
+    "Contact Details": {
+      "Employee_ID": ["numeric_only"],
+      "Employee_Email": ["email"],
+      "Employee_Phone": ["phone_number"]
+    },
+
+    "Compensation": {
+      "Employee_ID": ["numeric_only"],
+      "Salary": ["amount"],
+      "Performance_Score": ["number"]
+    },
+
+    "Manager Details": {
+      "Employee_ID": ["numeric_only"],
+      "Manager_Name": ["text_only"],
+      "Manager_Email": ["email"]
+    }
+  }
+}

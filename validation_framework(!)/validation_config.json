@@ -1,0 +1,38 @@
+{
+  "_comment": "Generic configuration for the Validation Automation Framework. This file defines WHICH sheets are expected and WHAT generic validation rules exist (with their parameters) - it does NOT list any column/field names. Fields are discovered dynamically from the workbook at runtime; see validations/validation.py and README.md for the rule-determination algorithm.",
+
+  "workbook": {
+    "name": "Validation_Sample.xlsx"
+  },
+
+  "sheet_checks": {
+    "Read Me": { "required": true },
+    "Employee Details": { "required": true },
+    "Contact Details": { "required": true },
+    "Compensation": { "required": true },
+    "Manager Details": { "required": true }
+  },
+
+  "column_checks": {
+    "numeric_only": {},
+    "email": {},
+    "phone_number": {},
+    "amount": {
+      "min_value": 20000,
+      "max_value": 200000
+    },
+    "number": {
+      "min_value": 0,
+      "max_value": 100
+    },
+    "date": {
+      "format": "%Y-%m-%d"
+    },
+    "text_only": {}
+  },
+
+  "rule_detection": {
+    "match_threshold": 0.6,
+    "sample_size": 200
+  }
+}

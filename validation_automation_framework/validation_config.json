@@ -1,0 +1,20 @@
+{
+  "_comment": "Generic framework configuration ONLY. This file contains no validation conditions/thresholds and no column/field names. Which sheets are expected (sheet_checks) and how confidently the engine must recognize a column's content before assigning it a rule (rule_detection) are the only things configured here - both are framework-level settings, not business validation logic. The seven validation rules themselves (numeric_only, email, phone_number, amount, number, date, text_only), their acceptable ranges/formats, and the priority in which they are auto-detected are all implemented directly in validations/validation.py. See README.md for the full rationale.",
+
+  "workbook": {
+    "name": "Validation_Sample.xlsx"
+  },
+
+  "sheet_checks": {
+    "Read Me": { "required": true },
+    "Employee Details": { "required": true },
+    "Contact Details": { "required": true },
+    "Compensation": { "required": true },
+    "Manager Details": { "required": true }
+  },
+
+  "rule_detection": {
+    "match_threshold": 0.6,
+    "sample_size": 200
+  }
+}

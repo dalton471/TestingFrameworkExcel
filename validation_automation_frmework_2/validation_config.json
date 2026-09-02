@@ -1,0 +1,29 @@
+{
+  "_comment": "Generic framework configuration ONLY. This file contains no validation conditions/thresholds and no column/field names. Which sheets are expected (sheet_checks), how confidently the engine must recognize a column's content before assigning it a rule (rule_detection), and which of the framework's supported validations to explicitly call out (validations) are the only things configured here - all framework-level SELECTION settings, never validation logic. The seven validation rules themselves (numeric_only, email, phone_number, amount, number, date, text_only), their acceptable ranges/formats, and the priority in which they are auto-detected are all implemented directly in validations/validation.py - JSON never contains a regex, a range, or a date format. See README.md for the full rationale.",
+
+  "workbook": {
+    "name": "Validation_Sample.xlsx"
+  },
+
+  "sheet_checks": {
+    "Read Me": { "required": true },
+    "Employee Details": { "required": true },
+    "Contact Details": { "required": true },
+    "Compensation": { "required": true },
+    "Manager Details": { "required": true }
+  },
+
+  "rule_detection": {
+    "match_threshold": 0.6,
+    "sample_size": 200
+  },
+
+  "_validations_comment": "Optional. Names a SUBSET of the framework's supported validations to explicitly call out as selected. This does not narrow what runs - every validation the Python framework supports still executes; any name not listed here is automatically added by the framework and reported as such in the terminal output and Execution Summary. Omitting this key entirely (or removing this file altogether) has the identical effect: nothing is 'selected', so every supported validation is reported as automatically added - see README.md 'JSON Selects, Python Defines'.",
+  "validations": [
+    "numeric_only",
+    "email",
+    "amount",
+    "date",
+    "text_only"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "rule_detection": {
+    "match_threshold": 0.6,
+    "sample_size": 200
+  },
+  "rules": [
+    { "name": "sheet_existence", "enabled": true, "parameters": {} },
+    { "name": "unexpected_sheet", "enabled": true, "parameters": {} },
+    { "name": "column_existence", "enabled": true, "parameters": {} },
+    { "name": "email", "enabled": true, "parameters": {} },
+    { "name": "phone", "enabled": true, "parameters": {} },
+    { "name": "date", "enabled": true, "parameters": {} },
+    { "name": "numeric_only", "enabled": true, "parameters": {} },
+    { "name": "number", "enabled": true, "parameters": { "min_value": 0, "max_value": 100 } },
+    { "name": "amount", "enabled": true, "parameters": { "min_value": 0 } },
+    { "name": "text_only", "enabled": true, "parameters": {} },
+    { "name": "duplicate_rows", "enabled": true, "parameters": {} },
+    { "name": "required", "enabled": false, "parameters": { "columns": [] } },
+    { "name": "length", "enabled": false, "parameters": { "columns": [], "min_length": null, "max_length": null } },
+    { "name": "regex", "enabled": false, "parameters": { "columns": [], "pattern": null } },
+    { "name": "data_type", "enabled": false, "parameters": { "columns": [], "expected_type": "str" } },
+    { "name": "unique_field", "enabled": false, "parameters": { "columns": [] } },
+    { "name": "cross_field", "enabled": false, "parameters": { "sheet": null, "left_column": null, "right_column": null, "operator": "<=" } },
+    { "name": "cross_sheet", "enabled": false, "parameters": { "source_sheet": null, "source_column": null, "target_sheet": null, "target_column": null } }
+  ]
+}

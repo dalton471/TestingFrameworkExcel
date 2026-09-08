@@ -1,0 +1,40 @@
+2026-09-08 00:03:16 | INFO     | validation_framework | Validation framework starting
+2026-09-08 00:03:16 | INFO     | validation_framework | Configuration mode: JSON (config/validation_config.json)
+2026-09-08 00:03:16 | INFO     | validation_framework | Configuration loaded and validated (10 rule(s) configured)
+2026-09-08 00:03:16 | INFO     | validation_framework | Reading input file: input/Validation_Sample.xlsx
+2026-09-08 00:03:16 | INFO     | validation_framework | Discovered 5 sheet(s): Read Me, Employee Details, Contact Details, Compensation, Manager Details
+2026-09-08 00:03:16 | INFO     | validation_framework | Validation engine completed: 22 result(s) recorded
+2026-09-08 00:03:16 | INFO     | validation_framework | Writing Excel report to output/Validation_Report.xlsx
+2026-09-08 00:03:16 | INFO     | validation_framework | Writing JSON report to output/validation_results.json
+2026-09-08 00:03:16 | INFO     | validation_framework | Execution status: SUCCESS
+2026-09-08 00:03:16 | INFO     | validation_framework | Validation framework completed
+2026-09-08 00:03:17 | INFO     | validation_framework | Validation framework starting
+2026-09-08 00:03:17 | INFO     | validation_framework | Configuration mode: JSON (config/validation_config.json)
+2026-09-08 00:03:17 | INFO     | validation_framework | Configuration loaded and validated (10 rule(s) configured)
+2026-09-08 00:03:17 | INFO     | validation_framework | Reading input file: input/Validation_Sample.xlsx
+2026-09-08 00:03:17 | INFO     | validation_framework | Discovered 5 sheet(s): Read Me, Employee Details, Contact Details, Compensation, Manager Details
+2026-09-08 00:03:17 | INFO     | validation_framework | Validation engine completed: 22 result(s) recorded
+2026-09-08 00:03:17 | INFO     | validation_framework | Writing Excel report to output/Validation_Report.xlsx
+2026-09-08 00:03:17 | INFO     | validation_framework | Writing JSON report to output/validation_results.json
+2026-09-08 00:03:17 | INFO     | validation_framework | Execution status: SUCCESS
+2026-09-08 00:03:17 | INFO     | validation_framework | Validation framework completed
+2026-09-08 13:43:28 | INFO     | validation_framework | Validation framework starting
+2026-09-08 13:43:28 | INFO     | validation_framework | Configuration mode: JSON (config\validation_config.json)
+2026-09-08 13:43:28 | INFO     | validation_framework | Configuration loaded and validated (10 rule(s) configured)
+2026-09-08 13:43:28 | INFO     | validation_framework | Reading input file: input\Validation_Sample.xlsx
+2026-09-08 13:43:28 | INFO     | validation_framework | Discovered 5 sheet(s): Read Me, Employee Details, Contact Details, Compensation, Manager Details
+2026-09-08 13:43:28 | INFO     | validation_framework | Validation engine completed: 22 result(s) recorded
+2026-09-08 13:43:28 | INFO     | validation_framework | Writing Excel report to output\Validation_Report.xlsx
+2026-09-08 13:43:28 | INFO     | validation_framework | Writing JSON report to output\validation_results.json
+2026-09-08 13:43:28 | INFO     | validation_framework | Execution status: SUCCESS
+2026-09-08 13:43:28 | INFO     | validation_framework | Validation framework completed
+2026-09-08 13:44:47 | INFO     | validation_framework | Validation framework starting
+2026-09-08 13:44:47 | INFO     | validation_framework | Configuration mode: JSON (config\validation_config.json)
+2026-09-08 13:44:47 | INFO     | validation_framework | Configuration loaded and validated (10 rule(s) configured)
+2026-09-08 13:44:47 | INFO     | validation_framework | Reading input file: input\Validation_Sample.xlsx
+2026-09-08 13:44:47 | INFO     | validation_framework | Discovered 5 sheet(s): Read Me, Employee Details, Contact Details, Compensation, Manager Details
+2026-09-08 13:44:47 | INFO     | validation_framework | Validation engine completed: 22 result(s) recorded
+2026-09-08 13:44:47 | INFO     | validation_framework | Writing Excel report to output\Validation_Report.xlsx
+2026-09-08 13:44:47 | INFO     | validation_framework | Writing JSON report to output\validation_results.json
+2026-09-08 13:44:47 | INFO     | validation_framework | Execution status: SUCCESS
+2026-09-08 13:44:47 | INFO     | validation_framework | Validation framework completed

@@ -1,0 +1,25 @@
+{
+  "sheet_checks": {
+    "Read Me": { "required": true },
+    "Employee Details": { "required": true },
+    "Contact Details": { "required": true },
+    "Compensation": { "required": true },
+    "Manager Details": { "required": true }
+  },
+  "rule_detection": {
+    "match_threshold": 0.6,
+    "sample_size": 200
+  },
+  "rules": [
+    { "name": "sheet_existence", "enabled": true, "parameters": {} },
+    { "name": "unexpected_sheet", "enabled": true, "parameters": {} },
+    { "name": "email", "enabled": true, "parameters": {} },
+    { "name": "phone", "enabled": true, "parameters": {} },
+    { "name": "date", "enabled": true, "parameters": {} },
+    { "name": "numeric_only", "enabled": true, "parameters": {} },
+    { "name": "number", "enabled": true, "parameters": { "min_value": 0, "max_value": 100 } },
+    { "name": "amount", "enabled": true, "parameters": { "min_value": 0 } },
+    { "name": "text_only", "enabled": true, "parameters": {} },
+    { "name": "duplicate_rows", "enabled": true, "parameters": {} }
+  ]
+}
